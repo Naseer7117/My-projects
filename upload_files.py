@@ -34,9 +34,9 @@ PART_TYPE_MAPPING = {
     'PYQ': (6, 0, 'EXAM_QP', 'PYQ uploaded Successfully.'),
     'NOTES': (12, 1, 'LECTURENOTES', 'Lecture notes were uploaded.'),
     'IA': (14, 1, 'LECTURENOTESINTERNALASSESSMENT', 'Internal Assessment files were Uploaded.'),
-    'SUMMARY': (13, 1, 'LECTURENOTESSUMMARY', 'Summary Files were Uploaded.')
+    'SUMMARY': (13, 1, 'LECTURENOTESSUMMARY', 'Summary Files were Uploaded.'),
+    'MODEL PAPER': (6, 0, 'EXAM_QP', 'Model Papers uploaded successfully.')  # << ADD THIS LINE
 }
-
 # ---------------------------
 # Tracking Uploads
 # ---------------------------
