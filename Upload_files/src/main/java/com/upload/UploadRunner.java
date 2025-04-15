@@ -1,0 +1,131 @@
+package com.upload;
+
+import com.upload.config.PartTypeRegistry;
+import com.upload.db.BookRepository;
+import com.upload.model.Book;
+import com.upload.service.FolderScanner;
+import com.upload.service.FolderScanner.PartType;
+import com.upload.ssh.SshManager;
+
+import java.io.File;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class UploadRunner {
+
+    private static final File BASE_FOLDER = new File("D:/uploads");
+    private static final Scanner scanner = new Scanner(System.in);
+    private static final Set<String> ALLOWED_UNIVERSITIES = Set.of("ou", "ku", "mgu", "jntu");
+
+    public static void main(String[] args) {
+        SshManager.startTunnel(
+            "D:/Office-Learn/SQL Queries for Office/sia_ssh_key.pem",
+            "ubuntu",
+            "3.109.135.116",
+            5432,
+            5432
+        );
+
+        if (!BASE_FOLDER.exists() || !BASE_FOLDER.isDirectory()) {
+            System.out.println("Invalid upload folder: " + BASE_FOLDER.getAbsolutePath());
+            SshManager.stopTunnel();
+            return;
+        }
+
+        File[] bookFolders = BASE_FOLDER.listFiles(File::isDirectory);
+        if (bookFolders == null || bookFolders.length == 0) {
+            System.out.println("No book folders found in: " + BASE_FOLDER.getAbsolutePath());
+            SshManager.stopTunnel();
+            return;
+        }
+
+        System.out.println("📦 Found " + bookFolders.length + " folders to process.");
+
+        Set<String> uploadedFolders = new HashSet<>();
+        Set<String> processedBaseTitles = new HashSet<>();
+        List<String> skippedFolders = new ArrayList<>();
+
+        for (File bookFolder : bookFolders) {
+            String folderName = bookFolder.getName();
+            String folderKey = folderName.toLowerCase();
+            String baseTitle = folderName.replaceAll("\\s*\\([^)]*\\)", "").trim().toLowerCase();
+
+            if (processedBaseTitles.contains(baseTitle)) {
+                continue;
+            }
+
+            System.out.println("🔎 Searching for book title: '" + baseTitle + "' (ignoring brackets)");
+            List<Book> matchingBooks = BookRepository.getBookIdsFromTitle(baseTitle);
+            if (matchingBooks.isEmpty()) {
+                System.out.println("❌ No matching books found for: " + folderName);
+                skippedFolders.add(folderName);
+                continue;
+            }
+
+            boolean commonToAll = folderName.toLowerCase().contains("(common)");
+            if (commonToAll) {
+                System.out.println("🧠 Detected (Common) in folder name — assuming common content for all universities.");
+            } else if (matchingBooks.size() > 1) {
+                System.out.println("🧠 Multiple book matches found. Assuming content is NOT common to all universities.");
+                commonToAll = false;
+            } else {
+                commonToAll = true; // Only one book match → assume common by default
+            }
+
+            if (commonToAll) {
+                for (Book book : matchingBooks) {
+                    FolderScanner.scanAndUpload(bookFolder, book.getId(), PartTypeRegistry.PART_TYPES);
+                }
+                uploadedFolders.add(folderKey);
+            } else {
+                boolean matched = false;
+                for (File folder : bookFolders) {
+                    String universityFolderName = folder.getName();
+                    String base = universityFolderName.replaceAll("\\s*\\([^)]*\\)", "").trim().toLowerCase();
+                    String universityFolderKey = universityFolderName.toLowerCase();
+
+                    if (!base.equals(baseTitle)) continue;
+                    if (uploadedFolders.contains(universityFolderKey)) continue;
+
+                    String folderUniv = extractUniversityCode(universityFolderName);
+                    for (Book book : matchingBooks) {
+                        String bookUniv = extractUniversityCode(book.getTitle());
+                        if (folderUniv != null && folderUniv.equalsIgnoreCase(bookUniv)) {
+                            FolderScanner.scanAndUpload(folder, book.getId(), PartTypeRegistry.PART_TYPES);
+                            matched = true;
+                            uploadedFolders.add(universityFolderKey);
+                        }
+                    }
+                }
+                if (!matched) {
+                    skippedFolders.add(folderName);
+                }
+            }
+
+            processedBaseTitles.add(baseTitle);
+        }
+
+        System.out.println("\n------------------------------------------");
+        if (skippedFolders.isEmpty()) {
+            System.out.println("✅ All folders were uploaded successfully.");
+        } else {
+            System.out.println("❌ Some folders were skipped:");
+            for (String folder : skippedFolders) {
+                System.out.println("- " + folder);
+            }
+        }
+        System.out.println("------------------------------------------\n");
+
+        SshManager.stopTunnel();
+    }
+
+    private static String extractUniversityCode(String name) {
+        Matcher m = Pattern.compile("\\((.*?)\\)").matcher(name);
+        if (m.find()) {
+            String content = m.group(1).toLowerCase();
+            return ALLOWED_UNIVERSITIES.contains(content) ? content : null;
+        }
+        return null;
+    }
+}
