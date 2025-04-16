@@ -9,6 +9,7 @@ import java.net.URL;
 public class ReprocessorService {
 
     public static void reprocessLMR(int bookId) {
+    	System.out.println("Starting the Reprocess of LMR : ...");
         reprocessStage1(bookId);
         reprocessStage2(bookId);
     }
@@ -45,6 +46,7 @@ public class ReprocessorService {
             int responseCode = conn.getResponseCode();
             if (responseCode == 200) {
                 System.out.println("✅ Reprocess Stage 2 complete for Book ID: " + bookId);
+                System.out.println("Now FAQ's will be Visible");
             } else {
                 System.err.println("❌ Reprocess Stage 2 failed. Book ID: " + bookId + ", HTTP " + responseCode);
             }

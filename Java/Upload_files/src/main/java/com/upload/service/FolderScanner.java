@@ -10,16 +10,17 @@ import java.util.regex.Pattern;
 
 public class FolderScanner {
 
-    public static void scanAndUpload(File folder, int bookId, Map<String, PartType> partTypeMap) {
+    public static boolean scanAndUpload(File folder, int bookId, Map<String, PartType> partTypeMap) {
         System.out.println("\n📚 Uploading files for Book ID: " + bookId + ", Folder: " + folder.getName());
 
         File[] subfolders = folder.listFiles(File::isDirectory);
         if (subfolders == null || subfolders.length == 0) {
             System.out.println("⚠️ No subfolders found in " + folder.getName());
-            return;
+            return false;
         }
 
         boolean foundValid = false;
+        boolean hasFailures = false;
         int partCount = 0;
 
         for (File subfolder : subfolders) {
@@ -37,13 +38,13 @@ public class FolderScanner {
 
                     for (File file : files) {
                         int unitNumber = part.startUnit == 1 ? extractUnitNumber(file.getName()) : 0;
-                        System.out.println("📄 Scanning file: " + file.getName() + " | Unit number: " + unitNumber);
-
+                        System.out.println("📄 Uploading-file: " + file.getName() + " | Unit number: " + unitNumber);
                         boolean success = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
-                        if (success) {
-                            System.out.println("✅ Uploaded: " + file.getName());
-                        } else {
+                        if (!success) {
+                            hasFailures = true;
                             System.out.println("❌ Failed: " + file.getName());
+                        } else {
+                            System.out.println("✅ Uploaded: " + file.getName());
                         }
                     }
 
@@ -62,6 +63,8 @@ public class FolderScanner {
         } else {
             System.out.println("\n✅ Total valid part types found: " + partCount);
         }
+
+        return foundValid && !hasFailures;
     }
 
     private static int extractUnitNumber(String filename) {

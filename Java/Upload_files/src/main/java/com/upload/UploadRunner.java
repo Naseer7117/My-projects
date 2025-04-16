@@ -44,7 +44,7 @@ public class UploadRunner {
 
         Set<String> uploadedFolders = new HashSet<>();
         Set<String> processedBaseTitles = new HashSet<>();
-        List<String> skippedFolders = new ArrayList<>();
+        List<String> failedFolders = new ArrayList<>();
 
         for (File bookFolder : bookFolders) {
             String folderName = bookFolder.getName();
@@ -55,11 +55,20 @@ public class UploadRunner {
                 continue;
             }
 
-            System.out.println("🔎 Searching for book title: '" + baseTitle + "' (ignoring brackets)");
-            List<Book> matchingBooks = BookRepository.getBookIdsFromTitle(baseTitle);
+            List<Book> matchingBooks = new ArrayList<>();
+
+            try {
+                int bookId = Integer.parseInt(baseTitle);
+                matchingBooks.add(new Book(bookId, folderName));
+                System.out.println("🔎 Detected numeric folder name — using Book ID: " + bookId);
+            } catch (NumberFormatException e) {
+                System.out.println("🔎 Searching for book title: '" + baseTitle + "' (ignoring brackets)");
+                matchingBooks = BookRepository.getBookIdsFromTitle(baseTitle);
+            }
+
             if (matchingBooks.isEmpty()) {
                 System.out.println("❌ No matching books found for: " + folderName);
-                skippedFolders.add(folderName);
+                failedFolders.add(folderName);
                 continue;
             }
 
@@ -70,12 +79,15 @@ public class UploadRunner {
                 System.out.println("🧠 Multiple book matches found. Assuming content is NOT common to all universities.");
                 commonToAll = false;
             } else {
-                commonToAll = true; // Only one book match → assume common by default
+                commonToAll = true;
             }
+
+            boolean success = true;
 
             if (commonToAll) {
                 for (Book book : matchingBooks) {
-                    FolderScanner.scanAndUpload(bookFolder, book.getId(), PartTypeRegistry.PART_TYPES);
+                    boolean result = FolderScanner.scanAndUpload(bookFolder, book.getId(), PartTypeRegistry.PART_TYPES);
+                    success = success && result;
                 }
                 uploadedFolders.add(folderKey);
             } else {
@@ -91,27 +103,33 @@ public class UploadRunner {
                     String folderUniv = extractUniversityCode(universityFolderName);
                     for (Book book : matchingBooks) {
                         String bookUniv = extractUniversityCode(book.getTitle());
-                        if (folderUniv != null && folderUniv.equalsIgnoreCase(bookUniv)) {
-                            FolderScanner.scanAndUpload(folder, book.getId(), PartTypeRegistry.PART_TYPES);
+                        if (folderUniv != null && bookUniv != null && folderUniv.equalsIgnoreCase(bookUniv)) {
+                            boolean result = FolderScanner.scanAndUpload(folder, book.getId(), PartTypeRegistry.PART_TYPES);
+                            success = success && result;
                             matched = true;
                             uploadedFolders.add(universityFolderKey);
                         }
                     }
                 }
                 if (!matched) {
-                    skippedFolders.add(folderName);
+                    failedFolders.add(folderName);
+                    continue;
                 }
+            }
+
+            if (!success) {
+                failedFolders.add(folderName);
             }
 
             processedBaseTitles.add(baseTitle);
         }
 
         System.out.println("\n------------------------------------------");
-        if (skippedFolders.isEmpty()) {
+        if (failedFolders.isEmpty()) {
             System.out.println("✅ All folders were uploaded successfully.");
         } else {
-            System.out.println("❌ Some folders were skipped:");
-            for (String folder : skippedFolders) {
+            System.out.println("❌ Some folders had upload issues:");
+            for (String folder : failedFolders) {
                 System.out.println("- " + folder);
             }
         }
