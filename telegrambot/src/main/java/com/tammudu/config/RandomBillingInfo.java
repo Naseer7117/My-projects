@@ -1,4 +1,4 @@
-package com.tammudu.files;
+package com.tammudu.config;
 
 import java.util.Random;
 

@@ -1,4 +1,7 @@
 package com.tammudu.files;
+import com.tammudu.config.*;
+import com.tammudu.managers.*;
+import com.tammudu.cmds.*;
 
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.bots.DefaultBotOptions;

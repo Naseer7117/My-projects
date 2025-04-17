@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 
 public class UploaderService {
 
-    public static boolean uploadFile(File file, int bookId, int unitNumber, String bookPartType) {
+	public static UploadResult uploadFile(File file, int bookId, int unitNumber, String bookPartType) {
         String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
         String lineEnd = "\r\n";
         String twoHyphens = "--";
@@ -65,20 +65,17 @@ public class UploaderService {
             int responseCode = conn.getResponseCode();
             try (Scanner scanner = new Scanner(conn.getInputStream()).useDelimiter("\\A")) {
                 String response = scanner.hasNext() ? scanner.next() : "";
-                System.out.println("✅ Uploaded " + file.getName() + " successfully (BookID " + bookId + ", Unit " + unitNumber + ", PartType " + bookPartType + ")");
                 String unitId = extractUnitIdFromText(response);
                 if (!unitId.equals("Not Found")) {
-                    System.out.println("📌 Unit ID: " + unitId);
                 } else {
                     System.out.println("ℹ️ No Unit ID found in response.");
                     System.out.println("🧾 API Raw Response: " + response);
                 }
-                UploadLogger.logUpload(bookId, bookPartType, unitNumber, file.getName());
-                return true;
+                return new UploadResult(true, unitId);
             }
         } catch (IOException e) {
             System.err.println("Error uploading file " + file.getName() + ": " + e.getMessage());
-            return false;
+            return new UploadResult(false, "");
         }
     }
 
@@ -91,5 +88,14 @@ public class UploaderService {
             }
         } catch (Exception ignored) {}
         return "Not Found";
+    }
+    public static class UploadResult {
+        public final boolean success;
+        public final String unitId;
+
+        public UploadResult(boolean success, String unitId) {
+            this.success = success;
+            this.unitId = unitId;
+        }
     }
 }

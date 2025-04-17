@@ -6,6 +6,7 @@ import com.upload.model.Book;
 import com.upload.service.FolderScanner;
 import com.upload.service.FolderScanner.PartType;
 import com.upload.ssh.SshManager;
+import com.upload.util.*;
 
 import java.io.File;
 import java.util.*;
@@ -15,7 +16,6 @@ import java.util.regex.Pattern;
 public class UploadRunner {
 
     private static final File BASE_FOLDER = new File("D:/uploads");
-    private static final Scanner scanner = new Scanner(System.in);
     private static final Set<String> ALLOWED_UNIVERSITIES = Set.of("ou", "ku", "mgu", "jntu");
 
     public static void main(String[] args) {
@@ -134,7 +134,7 @@ public class UploadRunner {
             }
         }
         System.out.println("------------------------------------------\n");
-
+        UploadLogger.saveToCSV("upload_report.csv");
         SshManager.stopTunnel();
     }
 

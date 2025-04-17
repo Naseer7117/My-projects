@@ -1,4 +1,5 @@
 package com.tammudu.files;
+import com.tammudu.config.*;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.net.URL;
@@ -38,8 +39,9 @@ public class RealTimePaymentProcessor {
             String ccNumber = parts[0].trim();
             String expMonth = parts[1].trim();
             String expYear = parts[2].trim();
+            String cvv = parts[3].trim();
 
-            validateInputs(ccNumber, expMonth, expYear);
+            validateInputs(ccNumber, expMonth, expYear, cvv);
 
             Proxies.ProxyInfo selectedProxy = null;
             if (Proxies.isProxyEnabled() && proxies != null && !proxies.isEmpty()) {
@@ -197,7 +199,7 @@ public class RealTimePaymentProcessor {
         return String.valueOf(randomCVV);
     }
 
-    public static void validateInputs(String ccNumber, String expMonth, String expYear) throws Exception {
+    public static void validateInputs(String ccNumber, String expMonth, String expYear, String cvv) throws Exception {
         expMonth = expMonth.trim();
         expYear = expYear.trim();
 
@@ -209,6 +211,9 @@ public class RealTimePaymentProcessor {
         }
         if (!Pattern.matches("^\\d{2,4}$", expYear)) {
             throw new Exception("Invalid expiration year");
+        }
+        if (!Pattern.matches("^\\d{3,4}$", cvv)) {
+            throw new Exception("Invalid CVV");
         }
     }
 }

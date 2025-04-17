@@ -1,7 +1,7 @@
 package com.upload.service;
 
-import com.upload.service.UploaderService;
-import com.upload.service.ReprocessorService;
+import com.upload.util.*;
+import com.upload.service.UploaderService.UploadResult;
 
 import java.io.File;
 import java.util.Map;
@@ -39,20 +39,21 @@ public class FolderScanner {
                     for (File file : files) {
                         int unitNumber = part.startUnit == 1 ? extractUnitNumber(file.getName()) : 0;
                         System.out.println("📄 Uploading-file: " + file.getName() + " | Unit number: " + unitNumber);
-                        boolean success = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
-                        if (!success) {
-                            hasFailures = true;
-                            System.out.println("❌ Failed: " + file.getName());
-                        } else {
+
+                        UploadResult result = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
+                        if (result.success) {
                             System.out.println("✅ Uploaded: " + file.getName());
+                            if (!result.unitId.isEmpty()) {
+                                System.out.println("📌 Unit ID: " + result.unitId);
+                                UploadLogger.logUpload(bookId, part.bookPartType, unitNumber, result.unitId);
+                            }
+                        } else {
+                            System.out.println("❌ Failed: " + file.getName());
+                            hasFailures = true;
                         }
                     }
 
                     foundValid = true;
-
-                    if (part.bookPartType.equals("QUESTIONANDANSWER")) {
-                        ReprocessorService.reprocessLMR(bookId);
-                    }
                     break;
                 }
             }

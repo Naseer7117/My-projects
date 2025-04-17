@@ -1,16 +1,12 @@
-package com.tammudu.files;
+package com.tammudu.cmds;
+import com.tammudu.files.*;
+import com.tammudu.managers.*;
 
 public class CommandHandler {
 
-    public static void handleStart(PaymentTelegramBot bot, Long chatId) {
-        bot.sendMessage(chatId, "Reii Ducker-tammudu hahahah!\n", true);
-        // 🔥 NEW: Preload checkout flow
-        try {
-            RealTimeSeleniumProcessor.preloadCheckoutPage();
-            bot.sendMessage(chatId, "✅ Checkout page is preloaded and ready!", false);
-        } catch (Exception e) {
-            bot.sendMessage(chatId, "❌ Error while preloading checkout: " + e.getMessage(), false);
-        }
+	public static void handleStart(PaymentTelegramBot bot, Long chatId) {
+	    bot.sendMessage(chatId, "What is the first digit of your card? (e.g. 4 for Visa, 5 for MasterCard)", true);
+	    BotSessionManager.setExpectingCardStartDigit(chatId, true);
     }
 
     public static void handleCommands(PaymentTelegramBot bot, Long chatId) {
@@ -38,7 +34,7 @@ public class CommandHandler {
             String ccNumber = parts[0].trim();
             String expMonth = parts[1].trim();
             String expYear = parts[2].trim();
-            String userCVV = parts[3].trim();  // ✅ Correct extraction
+            String cvv = parts[3].trim();  
 
             String bin = ccNumber.substring(0, 6);
 
@@ -47,14 +43,13 @@ public class CommandHandler {
                 return;
             }
 
-            RealTimePaymentProcessor.validateInputs(ccNumber, expMonth, expYear);
+            RealTimePaymentProcessor.validateInputs(ccNumber, expMonth, expYear, cvv);
 
             bot.sendMessage(chatId, "🦆 Ducking started!\nPlease wait while we duck your card ⏳", false);
 
             new Thread(() -> {
                 try {
-                    // 🔥 NEW: Use RealTimeSeleniumProcessor for fast 7 wrong CVV attempts
-                    String result = RealTimeSeleniumProcessor.processPayment(ccNumber, expMonth, expYear);
+                	String result = RealTimePaymentProcessor.processPayment(cardDetails); // ✅ API-based
                     bot.sendMessage(chatId, result, false);
                 } catch (Exception e) {
                     bot.sendMessage(chatId, "❌ Error while processing card: " + e.getMessage(), false);
@@ -67,9 +62,38 @@ public class CommandHandler {
     }
 
     // 🔥 All other methods untouched exactly as you asked
+    public static void handleFetsLuck(PaymentTelegramBot bot, Long chatId, String cardDetails, Long userId) {
+        if (!UserManager.isUserAllowed(userId) && !bot.isAdminOrDev(userId)) {
+            bot.sendMessage(chatId, "❌ You are not authorized to use `/fetsluck`. Contact admin!", false);
+            return;
+        }
 
-    public static void handleFetsLuck(PaymentTelegramBot bot, Long chatId) {
-        bot.sendMessage(chatId, "🦆 FetsLuck is currently under construction. Stay tuned! 🚧", false);
+        try {
+            String[] parts = cardDetails.split("\\|");
+            if (parts.length != 4) {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: /fetsluck 4111111111111111|02|25|555", true);
+                return;
+            }
+
+            String ccNumber = parts[0].trim();
+            String expMonth = parts[1].trim();
+            String expYear = parts[2].trim();
+            String userCVV = parts[3].trim();  // only used for parsing, ignored in Selenium
+
+            bot.sendMessage(chatId, "🌀 Processing your card with FetsLuck, please wait...", false);
+
+            new Thread(() -> {
+                try {
+                    String result = RealTimeSeleniumProcessor.processFetsLuckCard(ccNumber, expMonth, expYear, userCVV);
+                    bot.sendMessage(chatId, result, false);
+                } catch (Exception e) {
+                    bot.sendMessage(chatId, "❌ Error during FetsLuck processing: " + e.getMessage(), false);
+                }
+            }).start();
+
+        } catch (Exception e) {
+            bot.sendMessage(chatId, "❌ Something went wrong while parsing the card.", false);
+        }
     }
 
     public static void handleCheck(PaymentTelegramBot bot, Long chatId) {

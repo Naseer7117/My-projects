@@ -1,4 +1,7 @@
-package com.tammudu.files;
+package com.tammudu.cmds;
+import com.tammudu.files.*;
+import com.tammudu.config.*;
+import com.tammudu.managers.*;
 
 import org.telegram.telegrambots.meta.api.objects.Update;
 
@@ -9,7 +12,29 @@ public class UpdateHandler {
             String messageText = update.getMessage().getText().trim();
             Long chatId = update.getMessage().getChatId();
             Long userId = update.getMessage().getFrom().getId();
+// This is the user input to remeber the card digit and select at the drop down at check out
+            if (BotSessionManager.isExpectingCardStartDigit(chatId)) {
+                String input = messageText.trim();
 
+                // ✅ Validate: Must be exactly one digit
+                if (!input.matches("\\d") || input.length() != 1) {
+                    bot.sendMessage(chatId, "❌ Please enter exactly one digit (0-9) as the first digit of your card.", true);
+                    return;
+                }
+
+                BotSessionManager.setExpectingCardStartDigit(chatId, false);
+                char firstDigit = input.charAt(0);
+
+                bot.sendMessage(chatId, "✅ Got it! Preloading Started, Please Wait...", false);
+                try {
+                    RealTimeSeleniumProcessor.preloadCheckoutPage(firstDigit);
+                    bot.sendMessage(chatId, "✅ Pre-Load is Ready", false);
+                } catch (Exception e) {
+                    bot.sendMessage(chatId, "❌ Error during preload: " + e.getMessage(), false);
+                }
+                return;
+            }
+//-------------------------------------------------Upto here it is preload logic-----------------------------------------------------
             if (messageText.startsWith("/start")) {
                 CommandHandler.handleStart(bot, chatId);
             } else if (messageText.startsWith("/onproxy")){
@@ -44,7 +69,8 @@ public class UpdateHandler {
                 }
             } else if (messageText.startsWith("/fetsluck")) {
                 if (UserManager.isUserAllowed(userId) || bot.isAdminOrDev(userId)) {
-                    CommandHandler.handleFetsLuck(bot, chatId);
+                	String cardDetails = messageText.replace("/fetsluck", "").trim();
+                	CommandHandler.handleFetsLuck(bot, chatId, cardDetails, userId);
                 } else {
                     bot.sendMessage(chatId, "❌ You are not authorized to use `/fetsluck`. Contact admin!", false);
                 }
@@ -85,7 +111,11 @@ public class UpdateHandler {
                 } else {
                     bot.sendMessage(chatId, "❌ You are not authorized to remove users.", false);
                 }
-            } else if (messageText.startsWith("/myuserid")) {
+            } else if (messageText.startsWith("/stop")) {
+                BotSessionManager.resetSession(chatId);  // 🔄 clear all pending session flags
+                bot.sendMessage(chatId, "🛑 All active processes stopped. Bot is now idle.", false);
+            }
+            else if (messageText.startsWith("/myuserid")) {
                 CommandHandler.handleMyUserId(bot, chatId, userId);
             } else {
                 bot.sendMessage(chatId, "❌ Unknown command. Use /commands to see all commands.", false);

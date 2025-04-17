@@ -1,4 +1,4 @@
-package com.tammudu.files;
+package com.tammudu.config;
 
 import java.io.IOException;
 import java.io.InputStream;
