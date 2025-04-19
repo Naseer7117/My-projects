@@ -10,7 +10,6 @@ com\tammudu\cmds\CommandHandler.class
 com\tammudu\config\Proxies.class
 com\tammudu\files\RealTimeSeleniumProcessor.class
 com\tammudu\managers\BinManager.class
-com\tammudu\files\PlaceOrderApiClient.class
 com\tammudu\cmds\UpdateHandler.class
 com\tammudu\files\Main.class
 com\tammudu\managers\AdminManager.class

