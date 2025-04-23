@@ -21,6 +21,7 @@ public class FolderScanner {
 
         boolean foundValid = false;
         boolean hasFailures = false;
+        boolean lmrUploaded = false;  // Track if LMR was uploaded
         int partCount = 0;
 
         for (File subfolder : subfolders) {
@@ -47,7 +48,10 @@ public class FolderScanner {
                                 System.out.println("📌 Unit ID: " + result.unitId);
                                 UploadLogger.logUpload(bookId, part.bookPartType, unitNumber, result.unitId);
                             }
-                        } else {
+                            if (part.bookPartType.equalsIgnoreCase("QUESTIONANDANSWER")) {
+                                lmrUploaded = true;
+                            }
+                        }else {
                             System.out.println("❌ Failed: " + file.getName());
                             hasFailures = true;
                         }
@@ -58,16 +62,17 @@ public class FolderScanner {
                 }
             }
         }
-
         if (!foundValid) {
             System.out.println("⚠️ No valid part type folders are present in this Book ID folder.");
         } else {
             System.out.println("\n✅ Total valid part types found: " + partCount);
         }
-
+        if (lmrUploaded) {
+            ReprocessorService.reprocessLMR(bookId);
+        }
         return foundValid && !hasFailures;
     }
-
+//-------------this takes the number to consider it for which unit , file name should consist of unit-1 like this
     private static int extractUnitNumber(String filename) {
         Pattern pattern = Pattern.compile("Unit[-_\s]?(\\d+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(filename);
