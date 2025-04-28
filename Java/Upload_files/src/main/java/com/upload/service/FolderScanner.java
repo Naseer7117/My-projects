@@ -34,7 +34,6 @@ public class FolderScanner {
 
                     System.out.println("\n📁 Folder '" + entry.getKey() + "' found in Book ID " + bookId);
                     System.out.println("🚀 Starting upload for part type: " + part.bookPartType);
-
                     partCount++;
 
                     for (File file : files) {
@@ -43,7 +42,7 @@ public class FolderScanner {
 
                         UploadResult result = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
                         if (result.success) {
-                            System.out.println("✅ Uploaded: " + file.getName());
+                            System.out.println("✅ Uploaded: " + file.getName() + "|Book id: " + bookId + "|Part: " +part.bookPartType);
                             if (!result.unitId.isEmpty()) {
                                 System.out.println("📌 Unit ID: " + result.unitId);
                                 UploadLogger.logUpload(bookId, part.bookPartType, unitNumber, result.unitId);
@@ -85,12 +84,11 @@ public class FolderScanner {
         }
         return 0;
     }
-
+//------This takes part Type to map it in Api Accordingly from PartType registry    
     public static class PartType {
         public int typeId;
         public int startUnit;
         public String bookPartType;
-
         public PartType(int typeId, int startUnit, String bookPartType) {
             this.typeId = typeId;
             this.startUnit = startUnit;
