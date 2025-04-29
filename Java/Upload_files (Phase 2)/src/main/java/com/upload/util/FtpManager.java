@@ -44,7 +44,7 @@ public class FtpManager {
             long scanEndTime = System.currentTimeMillis();
             long durationSeconds = (scanEndTime - scanStartTime) / 1000;
             System.out.println("✅ Scanning completed in " + durationSeconds + " seconds.");
-
+            System.out.println("FTP Session is Closed !!");
         } catch (IOException e) {
             System.err.println("❌ FTP Error: " + e.getMessage());
         } finally {
