@@ -87,13 +87,37 @@ public class FtpManager {
                             if (!localFolder.exists()) {
                                 localFolder.mkdirs();
                             }
-
                             downloadEntireFolder(ftpClient, remoteFilePath, localFolder);
 
                             if (!downloadedFolders.contains(localFolder)) {
                                 downloadedFolders.add(localFolder);
                             }
                             continue;
+                        } else {
+                            // Check for fallback part-type subfolders inside this folder
+                            FTPFile[] subfiles = ftpClient.listFiles(remoteFilePath);
+                            for (FTPFile sub : subfiles) {
+                                if (sub.isDirectory()) {
+                                    String subName = sub.getName().toLowerCase();
+                                    if (subName.contains("lmr") || subName.contains("pyq") || subName.contains("modelpaper") ||
+                                        subName.contains("notes") || subName.contains("ia") || subName.contains("summary")) {
+
+                                        System.out.println("📂 Folder didn't match DB, but found part-type inside: " + folderName);
+
+                                        File localUnknownFolder = new File(localTempDirPath, "Unknown/" + folderName);
+                                        if (!localUnknownFolder.exists()) {
+                                            localUnknownFolder.mkdirs();
+                                        }
+
+                                        downloadEntireFolder(ftpClient, remoteFilePath, localUnknownFolder);
+
+                                        if (!downloadedFolders.contains(localUnknownFolder)) {
+                                            downloadedFolders.add(localUnknownFolder);
+                                        }
+                                        break; // no need to check more subfolders
+                                    }
+                                }
+                            }
                         }
                     }
                 }
