@@ -1,7 +1,7 @@
 package com.upload.service;
 
-import com.upload.util.*;
-import com.upload.service.UploaderService.UploadResult;
+import com.upload.service.UploaderService;
+import com.upload.service.ReprocessorService;
 
 import java.io.File;
 import java.util.Map;
@@ -21,7 +21,6 @@ public class FolderScanner {
 
         boolean foundValid = false;
         boolean hasFailures = false;
-        boolean lmrUploaded = false;  // Track if LMR was uploaded
         int partCount = 0;
 
         for (File subfolder : subfolders) {
@@ -34,44 +33,40 @@ public class FolderScanner {
 
                     System.out.println("\n📁 Folder '" + entry.getKey() + "' found in Book ID " + bookId);
                     System.out.println("🚀 Starting upload for part type: " + part.bookPartType);
+
                     partCount++;
 
                     for (File file : files) {
                         int unitNumber = part.startUnit == 1 ? extractUnitNumber(file.getName()) : 0;
                         System.out.println("📄 Uploading-file: " + file.getName() + " | Unit number: " + unitNumber);
-
-                        UploadResult result = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
-                        if (result.success) {
-                            System.out.println("✅ Uploaded: " + file.getName() + "|Book id: " + bookId + "|Part: " +part.bookPartType);
-                            if (!result.unitId.isEmpty()) {
-                                System.out.println("📌 Unit ID: " + result.unitId);
-                                UploadLogger.logUpload(bookId, part.bookPartType, unitNumber, result.unitId);
-                            }
-                            if (part.bookPartType.equalsIgnoreCase("QUESTIONANDANSWER")) {
-                                lmrUploaded = true;
-                            }
-                        }else {
-                            System.out.println("❌ Failed: " + file.getName());
+                        boolean success = UploaderService.uploadFile(file, bookId, unitNumber, part.bookPartType);
+                        if (!success) {
                             hasFailures = true;
+                            System.out.println("❌ Failed: " + file.getName());
+                        } else {
+                            System.out.println("✅ Uploaded: " + file.getName());
                         }
                     }
 
                     foundValid = true;
+
+                    if (part.bookPartType.equals("QUESTIONANDANSWER")) {
+                        ReprocessorService.reprocessLMR(bookId);
+                    }
                     break;
                 }
             }
         }
+
         if (!foundValid) {
             System.out.println("⚠️ No valid part type folders are present in this Book ID folder.");
         } else {
             System.out.println("\n✅ Total valid part types found: " + partCount);
         }
-        if (lmrUploaded) {
-            ReprocessorService.reprocessLMR(bookId);
-        }
+
         return foundValid && !hasFailures;
     }
-//-------------this takes the number to consider it for which unit , file name should consist of unit-1 like this
+
     private static int extractUnitNumber(String filename) {
         Pattern pattern = Pattern.compile("Unit[-_\s]?(\\d+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(filename);
@@ -84,11 +79,12 @@ public class FolderScanner {
         }
         return 0;
     }
-//------This takes part Type to map it in Api Accordingly from PartType registry    
+
     public static class PartType {
         public int typeId;
         public int startUnit;
         public String bookPartType;
+
         public PartType(int typeId, int startUnit, String bookPartType) {
             this.typeId = typeId;
             this.startUnit = startUnit;
