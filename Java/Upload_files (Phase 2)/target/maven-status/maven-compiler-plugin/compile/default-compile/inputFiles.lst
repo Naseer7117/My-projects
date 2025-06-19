@@ -6,7 +6,6 @@ D:\Upload_files\src\main\java\com\upload\util\UploadLogger.java
 D:\Upload_files\src\main\java\com\upload\model\Book.java
 D:\Upload_files\src\main\java\com\upload\config\ApiConfig.java
 D:\Upload_files\src\main\java\com\upload\config\DbConfig.java
-D:\Upload_files\src\main\java\com\upload\util\FtpManager.java
 D:\Upload_files\src\main\java\com\upload\service\FolderScanner.java
 D:\Upload_files\src\main\java\com\upload\db\BookRepository.java
 D:\Upload_files\src\main\java\com\upload\service\UploaderService.java

@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>Book Upload Automation</name>
-    <description>Automated book file upload with SSH + PostgreSQL + FTP</description>
+    <description>Automated book file upload with SSH + PostgreSQL</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -20,11 +20,6 @@
     </properties>
 
     <dependencies>
-    <dependency>
-    <groupId>com.opencsv</groupId>
-    <artifactId>opencsv</artifactId>
-    <version>5.8</version>
-</dependency>
 <dependency>
   <groupId>org.json</groupId>
   <artifactId>json</artifactId>
@@ -43,12 +38,7 @@
             <artifactId>commons-io</artifactId>
             <version>2.11.0</version>
         </dependency>
-        <!-- Dependency for FTP -->
-        <dependency>
-    <groupId>commons-net</groupId>
-    <artifactId>commons-net</artifactId>
-    <version>3.8.0</version> <!-- latest stable version -->
-</dependency>
+
     </dependencies>
 
     <build>
