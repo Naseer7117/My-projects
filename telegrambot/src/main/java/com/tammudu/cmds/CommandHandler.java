@@ -1,6 +1,8 @@
 package com.tammudu.cmds;
 import com.tammudu.files.*;
 import com.tammudu.managers.*;
+import java.util.Arrays;
+import java.net.URLEncoder;
 
 public class CommandHandler {
 
@@ -22,42 +24,35 @@ public class CommandHandler {
                 "/removeuser <UserID> - Remove a user (Admin Only)";
         bot.sendMessage(chatId, commandsList, false);
     }
-
     public static void handleDuckLuck(PaymentTelegramBot bot, Long chatId, String cardDetails) {
         try {
-            String[] parts = cardDetails.split("\\|");
-            if (parts.length != 4) {
-                bot.sendMessage(chatId, "❌ Incorrect format. Please send like: `4111111111111111|07|2025|123`", true);
-                return;
+            // Log the raw cardDetails input for debugging purposes
+            System.out.println("Received card details: " + cardDetails);
+            // Assuming cardDetails format: ccNumber|expMonth|expYear|cvv
+            String[] cardParts = cardDetails.split("\\|");
+           // Log the parts for debugging
+            System.out.println("Parsed card parts: " + Arrays.toString(cardParts));
+
+            if (cardParts.length != 4) {
+                throw new IllegalArgumentException("Invalid card details format. Must be: ccNumber|expMonth|expYear|cvv");
             }
-
-            String ccNumber = parts[0].trim();
-            String expMonth = parts[1].trim();
-            String expYear = parts[2].trim();
-            String cvv = parts[3].trim();  
-
-            String bin = ccNumber.substring(0, 6);
-
-            if (BinManager.isBinBanned(bin)) {
-                bot.sendMessage(chatId, "❌ This BIN is Banned Here !!!", false);
-                return;
+            // Extract and trim the card parts
+            String cardNumber = cardParts[0].trim();
+            String expiryMonth = cardParts[1].trim();
+            String expiryYear = cardParts[2].trim();
+            String cvv = cardParts[3].trim();
+            if (cardNumber.isEmpty() || expiryMonth.isEmpty() || expiryYear.isEmpty() || cvv.isEmpty()) {
+                throw new IllegalArgumentException("All card details must be provided.");
             }
+            System.out.println("Card details validated: " +
+                    "Card Number: " + cardNumber + ", Expiry Month: " + expiryMonth + ", Expiry Year: " + expiryYear + ", CVV: " + cvv);
 
-            RealTimePaymentProcessor.validateInputs(ccNumber, expMonth, expYear, cvv);
-
-            bot.sendMessage(chatId, "🦆 Ducking started!\nPlease wait while we duck your card ⏳", false);
-
-            new Thread(() -> {
-                try {
-                	String result = RealTimePaymentProcessor.processPayment(cardDetails); // ✅ API-based
-                    bot.sendMessage(chatId, result, false);
-                } catch (Exception e) {
-                    bot.sendMessage(chatId, "❌ Error while processing card: " + e.getMessage(), false);
-                }
-            }).start();
-
+            String url = "http://localhost:8081/index.html?cardDetails=" + URLEncoder.encode(cardDetails, "UTF-8");
+            // Send the user a message with the link to the frontend for payment processing
+            bot.sendMessage(chatId, "Please proceed with the payment using the following link: " + url, false);
         } catch (Exception e) {
             bot.sendMessage(chatId, "❌ Error: " + e.getMessage(), false);
+            e.printStackTrace(); // Print the stack trace for debugging
         }
     }
 
