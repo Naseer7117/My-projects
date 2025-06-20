@@ -24,36 +24,8 @@ public class CommandHandler {
                 "/removeuser <UserID> - Remove a user (Admin Only)";
         bot.sendMessage(chatId, commandsList, false);
     }
-    public static void handleDuckLuck(PaymentTelegramBot bot, Long chatId, String cardDetails) {
-        try {
-            // Log the raw cardDetails input for debugging purposes
-            System.out.println("Received card details: " + cardDetails);
-            // Assuming cardDetails format: ccNumber|expMonth|expYear|cvv
-            String[] cardParts = cardDetails.split("\\|");
-           // Log the parts for debugging
-            System.out.println("Parsed card parts: " + Arrays.toString(cardParts));
-
-            if (cardParts.length != 4) {
-                throw new IllegalArgumentException("Invalid card details format. Must be: ccNumber|expMonth|expYear|cvv");
-            }
-            // Extract and trim the card parts
-            String cardNumber = cardParts[0].trim();
-            String expiryMonth = cardParts[1].trim();
-            String expiryYear = cardParts[2].trim();
-            String cvv = cardParts[3].trim();
-            if (cardNumber.isEmpty() || expiryMonth.isEmpty() || expiryYear.isEmpty() || cvv.isEmpty()) {
-                throw new IllegalArgumentException("All card details must be provided.");
-            }
-            System.out.println("Card details validated: " +
-                    "Card Number: " + cardNumber + ", Expiry Month: " + expiryMonth + ", Expiry Year: " + expiryYear + ", CVV: " + cvv);
-
-            String url = "http://localhost:8081/index.html?cardDetails=" + URLEncoder.encode(cardDetails, "UTF-8");
-            // Send the user a message with the link to the frontend for payment processing
-            bot.sendMessage(chatId, "Please proceed with the payment using the following link: " + url, false);
-        } catch (Exception e) {
-            bot.sendMessage(chatId, "❌ Error: " + e.getMessage(), false);
-            e.printStackTrace(); // Print the stack trace for debugging
-        }
+    public static void handleDuckLuck() {
+       
     }
 
     // 🔥 All other methods untouched exactly as you asked

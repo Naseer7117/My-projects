@@ -60,14 +60,13 @@ public class UpdateHandler {
                 }
             } else if (messageText.startsWith("/commands")) {
                 CommandHandler.handleCommands(bot, chatId);
-            } else if (messageText.startsWith("/duck")) {
-                if (UserManager.isUserAllowed(userId) || bot.isAdminOrDev(userId)) {
-                    String cardDetails = messageText.replace("/duck", "").trim();
-                    CommandHandler.handleDuckLuck(bot, chatId, cardDetails);
-                } else {
-                    bot.sendMessage(chatId, "❌ You are not authorized to use `/duck`. Contact admin!", false);
-                }
-            } else if (messageText.startsWith("/fetsluck")) {
+            } /*else if (messageText.startsWith("/duck")) {
+            if (UserManager.isUserAllowed(userId) || bot.isAdminOrDev(userId)) {
+            String cardDetails = messageText.replace("/duck", "").trim();
+            CommandHandler.handleDuckLuck(bot, chatId, cardDetails);
+        } else {
+            bot.sendMessage(chatId, "❌ You are not authorized to use `/duck`. Contact admin!", false);
+        }*/  else if (messageText.startsWith("/fetsluck")) {
                 if (UserManager.isUserAllowed(userId) || bot.isAdminOrDev(userId)) {
                 	String cardDetails = messageText.replace("/fetsluck", "").trim();
                 	CommandHandler.handleFetsLuck(bot, chatId, cardDetails, userId);
