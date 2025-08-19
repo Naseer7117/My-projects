@@ -42,13 +42,13 @@ public class RealTimeSeleniumProcessor {
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", pickupRadio);
             wait.until(ExpectedConditions.elementToBeClickable(pickupRadio));
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", pickupRadio);
-            Thread.sleep(3000);
+            Thread.sleep(4000);
 
          // Step 3: Click "Tomorrow" for pickup
             WebElement tomorrowLabel = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("label[for='deliveryDate-ss-4']")));
             tomorrowLabel.click();
             // Optional short pause to simulate real user
-            Thread.sleep(2000);
+            Thread.sleep(1000);
 
             // Step 4: Click Add to Cart
             WebElement addToCartBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("pdpAddToCartBtnDefault")));
