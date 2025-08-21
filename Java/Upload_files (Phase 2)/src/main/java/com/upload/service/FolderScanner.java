@@ -68,7 +68,18 @@ public class FolderScanner {
     }
 
     private static int extractUnitNumber(String filename) {
-        Pattern pattern = Pattern.compile("Unit[-_\s]?(\\d+)", Pattern.CASE_INSENSITIVE);
+        Pattern pattern = Pattern.compile(
+                    "(?i)"                                // case-insensitive
+    			  + "(?<![A-Za-z0-9])"                    // not inside a word (avoids COMM[UNITY])
+    			  + "(?:U|UNIT)"                          // 'U' or 'Unit'
+    			  + "[\\s._-]*"                           // any separators: space . _ -
+    			  + "("                                   // ---- capture ONLY the unit token ----
+    			  +   "(?:\\d+)(?!\\d)"                   // digits, not followed by another digit (so '5A' works)
+    			  +   "|"
+    			  +   "(?:[IVXLCDM]+)(?![IVXLCDM])"       // Roman numerals, not followed by another Roman letter
+    			  + ")",
+    			  Pattern.CASE_INSENSITIVE
+    			);
         Matcher matcher = pattern.matcher(filename);
         if (matcher.find()) {
             try {
