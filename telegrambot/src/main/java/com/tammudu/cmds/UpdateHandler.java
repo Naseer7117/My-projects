@@ -114,6 +114,10 @@ public class UpdateHandler {
                 BotSessionManager.resetSession(chatId);  // 🔄 clear all pending session flags
                 bot.sendMessage(chatId, "🛑 All active processes stopped. Bot is now idle.", false);
             }
+            else if (messageText.toLowerCase().startsWith("/bin")) {
+                String arg = messageText.replaceFirst("(?i)/bin", "").trim();
+                CommandHandler.handleBinLookup(bot, chatId, arg);
+            }
             else if (messageText.startsWith("/myuserid")) {
                 CommandHandler.handleMyUserId(bot, chatId, userId);
             } else {

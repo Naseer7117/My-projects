@@ -1,0 +1,21 @@
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="ERROR">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+  <logger name="org.apache.http" level="OFF" additivity="false"/>
+  <logger name="org.apache.http.wire" level="OFF" additivity="false"/>
+  <logger name="org.apache.http.impl" level="OFF" additivity="false"/>
+  <logger name="org.apache.http.client" level="OFF" additivity="false"/>
+  <logger name="org.apache.http.conn" level="OFF" additivity="false"/>
+
+  <logger name="org.telegram" level="ERROR"/>
+  <logger name="okhttp3" level="ERROR"/>
+  <logger name="org.springframework" level="ERROR"/>
+</configuration>
