@@ -16,6 +16,7 @@ public class CommandHandler {
                 "/start - Start the bot\n" +
                 "/commands - List all available commands\n" +
                 "/duck - Ducks your card\n" +
+                "/bin <BIN> - Lookup BIN details\n" +
                 "/fetsluck - Checker (under construction)\n" +
                 "/check - Isn't developed yet\n" +
                 "/myuserid - Show your Telegram User ID and Chat ID\n" +
@@ -119,6 +120,15 @@ public class CommandHandler {
         } catch (Exception e) {
             bot.sendMessage(chatId, "❌ Error removing user.", false);
         }
+    }
+    
+    public static void handleBinLookup(com.tammudu.files.PaymentTelegramBot bot, Long chatId, String arg) {
+        if (arg == null || arg.isBlank()) {
+            bot.sendMessage(chatId, "Usage: `/bin 411911` — provide a 6–12 digit BIN", true);
+            return;
+        }
+        String reply = com.tammudu.files.BinLookupService.lookup(arg);
+        bot.sendMessage(chatId, reply, true);
     }
 
     public static void handleMyUserId(PaymentTelegramBot bot, Long chatId, Long userId) {
