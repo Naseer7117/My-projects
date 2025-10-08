@@ -5,14 +5,53 @@ type ContactPageProps = {
   data: ContactContent;
 };
 
-const ContactPage: React.FC<ContactPageProps> = ({ data }) => (
-  <section className="page py-5">
-    <div className="container">
-      <div className="row g-4 align-items-stretch">
-        <div className="col-lg-6">
-          <div className="card soft-card h-100">
+const ContactPage: React.FC<ContactPageProps> = ({ data }) => {
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const target = document.documentElement;
+    const defaultAngle = '32deg';
+
+    const updateCardAngle = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight || 1;
+      const progress = Math.min(1, Math.max(0, scrollTop / docHeight));
+      const angle = 24 + progress * 60;
+      target.style.setProperty('--contact-card-angle', `${angle}deg`);
+    };
+
+    if (prefersReducedMotion) {
+      target.style.setProperty('--contact-card-angle', defaultAngle);
+      return () => {
+        target.style.setProperty('--contact-card-angle', defaultAngle);
+      };
+    }
+
+    updateCardAngle();
+    window.addEventListener('scroll', updateCardAngle, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', updateCardAngle);
+      target.style.setProperty('--contact-card-angle', defaultAngle);
+    };
+  }, []);
+
+  return (
+    <section className="page py-5">
+      <div className="container">
+        <div className="row g-4 align-items-stretch">
+          <div className="col-lg-6">
+          <div className="card soft-card contact-card h-100">
             <div className="card-body">
-              <span className="pill-label">Work with me</span>
+              <span className="pill-label pill-label--sparkle">
+                <span className="pill-label__sparkle pill-label__sparkle--top-left" aria-hidden="true" />
+                <span className="pill-label__sparkle pill-label__sparkle--top-right" aria-hidden="true" />
+                <span className="pill-label__sparkle pill-label__sparkle--bottom-left" aria-hidden="true" />
+                <span className="pill-label__sparkle pill-label__sparkle--bottom-right" aria-hidden="true" />
+                <span className="pill-label__text">Work with me</span>
+              </span>
               <h2 className="section-title mt-3">Let us craft the next chapter together</h2>
               <p className="text-secondary">{data.availability}</p>
               <div className="mt-4">
@@ -37,9 +76,13 @@ const ContactPage: React.FC<ContactPageProps> = ({ data }) => (
           </div>
         </div>
         <div className="col-lg-6">
-          <div className="card soft-card h-100">
+          <div className="card soft-card contact-card h-100">
             <div className="card-body">
-              <h3 className="h5">Services</h3>
+              <h3 className="h5 heading-sparkle">
+                <span className="heading-sparkle__star" aria-hidden="true" />
+                <span className="heading-sparkle__text">Services</span>
+                <span className="heading-sparkle__star heading-sparkle__star--mirrored" aria-hidden="true" />
+              </h3>
               <div className="row g-3 mt-2">
                 {data.services.map((service) => (
                   <div className="col-sm-12" key={service.title}>
@@ -53,31 +96,29 @@ const ContactPage: React.FC<ContactPageProps> = ({ data }) => (
 
               <hr className="section-divider" />
 
-              <h3 className="h5">Availability snapshot</h3>
-              <ul className="list-unstyled text-secondary small">
-                {data.schedule.map((item) => (
-                  <li className="mb-2" key={item.label}>
-                    <span className="fw-semibold text-light d-block">{item.label}</span>
-                    <span>{item.slots}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <hr className="section-divider" />
-
-              <h3 className="h5">Testimonials</h3>
+              <h3 className="h5 heading-sparkle mt-4">
+                <span className="heading-sparkle__star" aria-hidden="true" />
+                <span className="heading-sparkle__text">Testimonials</span>
+                <span className="heading-sparkle__star heading-sparkle__star--mirrored" aria-hidden="true" />
+              </h3>
               {data.testimonials.map((testimonial) => (
                 <blockquote className="blockquote small text-secondary" key={testimonial.quote}>
                   "{testimonial.quote}"
-                  <footer className="blockquote-footer mt-2 text-light">
+                  <footer className="blockquote-footer mt-2 testimonial-footer">
                     {testimonial.author} - {testimonial.role}
                   </footer>
                 </blockquote>
               ))}
 
-              <div className="mt-4 d-flex flex-wrap gap-3">
-                {data.socials.map((social) => (
-                  <a className="link-accent" href={social.href} key={social.label}>
+              <div className="mt-4 d-flex flex-wrap gap-3 contact-socials">
+                {data.socials.map((social, index) => (
+                  <a
+                    className={`btn contact-social-btn contact-social-btn--${index % 3}`}
+                    href={social.href}
+                    key={social.label}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {social.label}
                   </a>
                 ))}
@@ -88,6 +129,7 @@ const ContactPage: React.FC<ContactPageProps> = ({ data }) => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default ContactPage;

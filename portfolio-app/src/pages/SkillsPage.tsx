@@ -9,12 +9,14 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => (
   <section className="page py-5">
     <div className="container">
       <h2 className="section-title text-center mb-5">Capabilities</h2>
-      <div className="row g-4">
-        {data.clusters.map((cluster) => (
+      <div className="row g-4 skills-cluster-grid">
+        {data.clusters.map((cluster, idx) => (
           <div className="col-md-4" key={cluster.title}>
-            <div className="card soft-card h-100">
+            <div className="card soft-card skills-cluster-card h-100">
               <div className="card-body">
-                <span className="badge rounded-pill text-bg-primary mb-3">{cluster.proficiency}%</span>
+                <span className={`skills-cluster-badge-wrapper mb-3 cluster-${(idx % 3) + 1}`}>
+                  <span className={`skills-cluster-badge cluster-${(idx % 3) + 1}`}>{cluster.proficiency}%</span>
+                </span>
                 <h3 className="h5">{cluster.title}</h3>
                 <p className="text-secondary">{cluster.summary}</p>
                 <ul className="small text-muted ps-3 mb-0">
@@ -28,7 +30,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => (
         ))}
       </div>
 
-      <div className="card soft-card mt-5">
+      <div className="card soft-card skills-toolchain-card mt-5">
         <div className="card-body">
           <h3 className="h5 mb-4">Preferred toolchain</h3>
           <div className="row g-4">
@@ -46,10 +48,10 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => (
         </div>
       </div>
 
-      <div className="row g-4 mt-1">
+      <div className="row g-4 mt-1 skills-workflow-grid">
         {data.workflows.map((workflow) => (
           <div className="col-md-4" key={workflow.title}>
-            <div className="card shadow-sm border-0 h-100 workflow-card">
+            <div className="card skills-workflow-card h-100">
               <div className="card-body">
                 <h3 className="h6 text-accent text-uppercase">{workflow.title}</h3>
                 <p className="text-secondary mb-0">{workflow.description}</p>

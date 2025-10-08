@@ -9,10 +9,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
   <section className="page py-5">
     <div className="container">
       <h2 className="section-title text-center mb-5">Selected work</h2>
-      <div className="row g-4">
+      <div className="row g-4 projects-featured-grid">
         {data.featured.map((project) => (
           <div className="col-lg-4" key={project.title}>
-            <div className="card project-card h-100">
+            <div className="card project-card project-card--featured h-100">
               <div className="card-body d-flex flex-column">
                 <span className="badge rounded-pill text-bg-primary align-self-start">Featured</span>
                 <h3 className="h5 mt-3">{project.title}</h3>
@@ -49,10 +49,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
         ))}
       </div>
 
-      <div className="row g-4 mt-1">
+      <div className="row g-4 mt-1 projects-labs-grid">
         {data.labs.map((lab) => (
           <div className="col-md-6" key={lab.title}>
-            <div className="card soft-card h-100">
+            <div className="card soft-card project-card--lab h-100">
               <div className="card-body">
                 <h3 className="h5">{lab.title}</h3>
                 <p className="text-secondary">{lab.description}</p>
@@ -65,10 +65,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
         ))}
       </div>
 
-      <div className="row g-4 mt-1">
+      <div className="row g-4 mt-1 projects-process-grid">
         {data.process.map((step) => (
           <div className="col-md-4" key={step.title}>
-            <div className="card shadow-sm border-0 h-100">
+            <div className="card project-card--process h-100">
               <div className="card-body">
                 <h3 className="h6 text-uppercase text-accent">{step.title}</h3>
                 <p className="text-secondary mb-0">{step.description}</p>

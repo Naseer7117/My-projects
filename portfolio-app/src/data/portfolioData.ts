@@ -18,8 +18,19 @@ export const portfolioData: PortfolioData = {
     introduction:
       'I combine analytical thinking, structured documentation, and collaborative communication to keep services healthy, resolve incidents, and turn feedback into measurable improvements.',
     photo: {
-      src: 'https://your-domain.example.com/path/to/portrait.jpg',
+      src: 'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Half_Img/mewithdesk1.png',
       alt: 'Portrait of Naseeruddin Shaik',
+      gallery: [
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait1.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait2.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait3.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait4.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait5.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait6.png',
+        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait7.png',
+      ],
+      slideshowIntervalMs: 1200,
+      slideshowFadeMs: 600,
     },
     spotlight: [
       {
@@ -39,7 +50,7 @@ export const portfolioData: PortfolioData = {
       },
     ],
     socials: [
-      { label: 'LinkedIn', href: 'https://linkedin.com/in/naseeruddin-shaik' },
+      { label: 'LinkedIn', href: 'https://www.linkedin.com/in/naseeruddin-shaik-7a3104249/' },
       { label: 'Instagram', href: 'https://www.instagram.com/u.s.t.a.a.d___7117/' },
       { label: 'Facebook', href: '#' },
     ],
@@ -288,7 +299,7 @@ export const portfolioData: PortfolioData = {
       },
     ],
     socials: [
-      { label: 'LinkedIn', href: 'https://linkedin.com/in/naseeruddin-shaik' },
+      { label: 'LinkedIn', href: 'https://www.linkedin.com/in/naseeruddin-shaik-7a3104249/' },
       { label: 'Email', href: 'mailto:naseer3504581@gmail.com' },
       { label: 'Phone', href: 'tel:+918143214862' },
     ],

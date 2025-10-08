@@ -76,7 +76,7 @@ type NavigationProps = {
 const NavigationBar: React.FC<NavigationProps> = ({ items, active, onNavigate, heroName }) => (
   <nav className="navbar navbar-expand-md main-navbar sticky-top">
     <div className="container">
-      <button type="button" className="navbar-brand btn btn-link p-0" onClick={() => onNavigate('home')}>
+      <button type="button" className="hero-navbar-brand" onClick={() => onNavigate('home')}>
         {heroName}
       </button>
       <button
@@ -109,6 +109,27 @@ const NavigationBar: React.FC<NavigationProps> = ({ items, active, onNavigate, h
   </nav>
 );
 
+const heroTickerWords = [
+  'Software',
+  'Engineer',
+  'Coding',
+  'Java',
+  'JavaScript',
+  'SQL',
+  'TypeScript',
+  'React',
+  'Selenium',
+  'C++',
+  'C',
+  'C#',
+  'HTML',
+  'CSS',
+  'Database',
+  'Python',
+  'www.',
+];
+const heroTickerSequence = [...heroTickerWords, ...heroTickerWords];
+
 const App: React.FC = () => {
   const [route, navigate] = useHashRoute('home');
   const { hero, about, skills, projects, contact } = portfolioData;
@@ -128,6 +149,19 @@ const App: React.FC = () => {
   return (
     <div className="app">
       <NavigationBar items={navItems} active={route} onNavigate={navigate} heroName={hero.name} />
+      {route === 'home' ? (
+        <div className="hero-ticker" aria-hidden="true">
+          <div className="hero-ticker__fade hero-ticker__fade--left" />
+          <div className="hero-ticker__fade hero-ticker__fade--right" />
+          <div className="hero-ticker__inner">
+            {heroTickerSequence.map((word, index) => (
+              <span className="hero-ticker__item" key={`hero-ticker-${index}-${word}`}>
+                {word}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <main className="page-shell">
         {route === 'home' ? <HomePage data={hero} onNavigate={navigate} /> : null}
         {route === 'about' ? <AboutPage data={about} /> : null}
@@ -135,9 +169,24 @@ const App: React.FC = () => {
         {route === 'projects' ? <ProjectsPage data={projects} /> : null}
         {route === 'contact' ? <ContactPage data={contact} /> : null}
       </main>
+      {route === 'home' ? (
+        <div className="hero-ticker hero-ticker--footer" aria-hidden="true">
+          <div className="hero-ticker__fade hero-ticker__fade--left" />
+          <div className="hero-ticker__fade hero-ticker__fade--right" />
+          <div className="hero-ticker__inner hero-ticker__inner--footer">
+            {heroTickerSequence.map((word, index) => (
+              <span className="hero-ticker__item" key={`hero-ticker-footer-${index}-${word}`}>
+                {word}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <footer className="site-footer py-4">
-        <div className="container text-center small text-muted">
-          &copy; {new Date().getFullYear()} {hero.name}. Crafted with care.
+        <div className="container text-center footer-credit-wrapper">
+          <span className="footer-credit">
+            &copy; {new Date().getFullYear()} {hero.name}. Crafted with care.
+          </span>
         </div>
       </footer>
     </div>
