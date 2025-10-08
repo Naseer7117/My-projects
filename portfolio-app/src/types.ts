@@ -92,6 +92,9 @@ export type HeroContent = {
   photo: {
     src: string;
     alt: string;
+    gallery?: string[];
+    slideshowIntervalMs?: number;
+    slideshowFadeMs?: number;
   };
   spotlight: Spotlight[];
   socials?: SocialLink[];
