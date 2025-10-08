@@ -7,7 +7,7 @@ com\tammudu\files\PaymentTelegramBot.class
 com\tammudu\config\Proxies$ProxyInfo.class
 com\tammudu\cmds\CommandHandler.class
 com\tammudu\config\Proxies.class
-com\tammudu\files\PaymentService.class
+com\tammudu\files\BinLookupService.class
 com\tammudu\files\RealTimeSeleniumProcessor.class
 com\tammudu\managers\BinManager.class
 com\tammudu\cmds\UpdateHandler.class
