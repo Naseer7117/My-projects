@@ -2,7 +2,6 @@ com\tammudu\managers\BotSessionManager.class
 com\tammudu\managers\UserManager.class
 com\tammudu\config\RandomBillingInfo.class
 com\tammudu\config\ConfigLoader.class
-com\tammudu\files\BotLogger.class
 com\tammudu\files\PaymentTelegramBot.class
 com\tammudu\config\Proxies$ProxyInfo.class
 com\tammudu\cmds\CommandHandler.class

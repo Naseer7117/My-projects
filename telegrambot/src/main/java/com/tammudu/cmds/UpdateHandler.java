@@ -34,6 +34,17 @@ public class UpdateHandler {
                 }
                 return;
             }
+
+            if (BotSessionManager.isExpectingGeneratorExpiry(chatId)) {
+                String expiryInput = messageText.trim();
+                CommandHandler.handleGenerateExpiry(bot, chatId, userId, expiryInput);
+                return;
+            }
+            if (BotSessionManager.isExpectingGeneratorQuantity(chatId)) {
+                String quantityInput = messageText.trim();
+                CommandHandler.handleGenerateQuantity(bot, chatId, userId, quantityInput);
+                return;
+            }
 //-------------------------------------------------Upto here it is preload logic-----------------------------------------------------
             if (messageText.startsWith("/start")) {
                 CommandHandler.handleStart(bot, chatId);
@@ -116,7 +127,11 @@ public class UpdateHandler {
             }
             else if (messageText.toLowerCase().startsWith("/bin")) {
                 String arg = messageText.replaceFirst("(?i)/bin", "").trim();
-                CommandHandler.handleBinLookup(bot, chatId, arg);
+                CommandHandler.handleBinLookup(bot, chatId, arg, userId);
+            }
+            else if (messageText.toLowerCase().startsWith(".gen")) {
+                String arg = (messageText.length() > 4) ? messageText.substring(4).trim() : "";
+                CommandHandler.handleGenerateStart(bot, chatId, userId, arg);
             }
             else if (messageText.startsWith("/myuserid")) {
                 CommandHandler.handleMyUserId(bot, chatId, userId);

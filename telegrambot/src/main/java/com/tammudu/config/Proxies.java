@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 public class Proxies {
 
-    private static volatile boolean useProxy = true; // ✅ MAKE IT VOLATILE
+    private static volatile boolean useProxy = false;
 
     public static class ProxyInfo {
         public String host;
