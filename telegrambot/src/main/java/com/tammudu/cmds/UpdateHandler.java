@@ -2,10 +2,25 @@ package com.tammudu.cmds;
 import com.tammudu.files.*;
 import com.tammudu.config.*;
 import com.tammudu.managers.*;
+import com.tammudu.chat.GeminiChatService;
+import com.tammudu.logs.BotLogger;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 public class UpdateHandler {
+
+    private static final Pattern DATE_QUERY_PATTERN = Pattern.compile(
+            "(?:what(?:'s| is)?\\s+the\\s+date|date\\s+today|today\\s+is\\s+what\\s+day|what\\s+day\\s+is\\s+it|which\\s+day\\s+is\\s+today|current\\s+date|tell\\s+me\\s+the\\s+date)",
+            Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.US);
+    private static final ZoneId DEFAULT_ZONE = ZoneId.systemDefault();
 
     public static void handle(Update update, PaymentTelegramBot bot) {
         if (update.hasMessage() && update.getMessage().hasText()) {
@@ -46,6 +61,10 @@ public class UpdateHandler {
                 return;
             }
 //-------------------------------------------------Upto here it is preload logic-----------------------------------------------------
+            if (handleDateQuestion(messageText, bot, chatId)) {
+                return;
+            }
+
             if (messageText.startsWith("/start")) {
                 CommandHandler.handleStart(bot, chatId);
             } else if (messageText.startsWith("/onproxy")){
@@ -135,9 +154,52 @@ public class UpdateHandler {
             }
             else if (messageText.startsWith("/myuserid")) {
                 CommandHandler.handleMyUserId(bot, chatId, userId);
+            } else if (GeminiChatService.isConfigured() && !messageText.startsWith("/")) {
+                String firstName = update.getMessage().getFrom() != null
+                        ? update.getMessage().getFrom().getFirstName()
+                        : null;
+                bot.runAsync(() -> {
+                    try {
+                        String aiResponse = GeminiChatService.generateReply(messageText, firstName);
+                        bot.sendMessage(chatId, aiResponse, false);
+                    } catch (Exception ex) {
+                        String reason = sanitizeErrorMessage(ex.getMessage());
+                        BotLogger.logAction("Gemini error for chat " + chatId + ": " + reason);
+                        bot.sendMessage(chatId,
+                                "I couldn't get a smart answer (" + reason + "). Please try again in a bit.",
+                                false);
+                    }
+                });
             } else {
                 bot.sendMessage(chatId, "❌ Unknown command. Use /commands to see all commands.", false);
             }
         }
+    }
+
+    private static boolean handleDateQuestion(String messageText, PaymentTelegramBot bot, Long chatId) {
+        if (messageText == null) {
+            return false;
+        }
+        String normalized = messageText.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        boolean explicitMatch = DATE_QUERY_PATTERN.matcher(normalized).find();
+        boolean heuristicMatch = normalized.contains("today") && (normalized.contains("date") || normalized.contains("day"));
+        if (explicitMatch || heuristicMatch) {
+            LocalDate today = LocalDate.now(DEFAULT_ZONE);
+            String formatted = today.format(DATE_FORMATTER);
+            bot.sendMessage(chatId, "Today is **" + formatted + "**", true);
+            return true;
+        }
+        return false;
+    }
+
+    private static String sanitizeErrorMessage(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "no details";
+        }
+        String cleaned = raw.replaceAll("[\r\n]+", " ").trim();
+        if (cleaned.length() > 200) {
+            cleaned = cleaned.substring(0, 197) + "...";
+        }
+        return cleaned;
     }
 }

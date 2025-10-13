@@ -21,4 +21,17 @@ public class ConfigLoader {
     public static String get(String key) {
         return properties.getProperty(key);
     }
+
+    public static String getOrDefault(String key, String defaultValue) {
+        String value = properties.getProperty(key);
+        return (value == null || value.isBlank()) ? defaultValue : value;
+    }
+
+    public static String getOrEnv(String propertyKey, String envKey) {
+        String value = properties.getProperty(propertyKey);
+        if (value == null || value.isBlank()) {
+            value = System.getenv(envKey);
+        }
+        return value;
+    }
 }
