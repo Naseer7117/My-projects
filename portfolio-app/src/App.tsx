@@ -75,12 +75,12 @@ type NavigationProps = {
 
 const NavigationBar: React.FC<NavigationProps> = ({ items, active, onNavigate, heroName }) => (
   <nav className="navbar navbar-expand-md main-navbar sticky-top">
-    <div className="container">
+    <div className="container-fluid main-navbar__container">
       <button type="button" className="hero-navbar-brand" onClick={() => onNavigate('home')}>
         {heroName}
       </button>
       <button
-        className="navbar-toggler"
+        className="navbar-toggler ms-auto"
         type="button"
         data-bs-toggle="collapse"
         data-bs-target="#mainNav"
@@ -90,8 +90,8 @@ const NavigationBar: React.FC<NavigationProps> = ({ items, active, onNavigate, h
       >
         <span className="navbar-toggler-icon" />
       </button>
-      <div className="collapse navbar-collapse" id="mainNav">
-        <ul className="navbar-nav ms-auto">
+      <div className="collapse navbar-collapse main-navbar__collapse" id="mainNav">
+        <ul className="navbar-nav ms-md-auto main-navbar__links">
           {items.map((item) => (
             <li className="nav-item" key={item.route}>
               <button

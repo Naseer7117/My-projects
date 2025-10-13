@@ -14,32 +14,37 @@ const ContactPage: React.FC<ContactPageProps> = ({ data }) => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const target = document.documentElement;
     const defaultAngle = '32deg';
+    const defaultOffset = '0px';
 
-    const updateCardAngle = () => {
+    const updateBackgroundOffset = () => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
       const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight || 1;
       const progress = Math.min(1, Math.max(0, scrollTop / docHeight));
-      const angle = 24 + progress * 60;
-      target.style.setProperty('--contact-card-angle', `${angle}deg`);
+      const offset = progress * 220;
+      target.style.setProperty('--contact-background-offset', `${offset}px`);
     };
 
     if (prefersReducedMotion) {
       target.style.setProperty('--contact-card-angle', defaultAngle);
+      target.style.setProperty('--contact-background-offset', defaultOffset);
       return () => {
         target.style.setProperty('--contact-card-angle', defaultAngle);
+        target.style.setProperty('--contact-background-offset', defaultOffset);
       };
     }
 
-    updateCardAngle();
-    window.addEventListener('scroll', updateCardAngle, { passive: true });
+    target.style.setProperty('--contact-card-angle', defaultAngle);
+    updateBackgroundOffset();
+    window.addEventListener('scroll', updateBackgroundOffset, { passive: true });
     return () => {
-      window.removeEventListener('scroll', updateCardAngle);
+      window.removeEventListener('scroll', updateBackgroundOffset);
       target.style.setProperty('--contact-card-angle', defaultAngle);
+      target.style.setProperty('--contact-background-offset', defaultOffset);
     };
   }, []);
 
   return (
-    <section className="page py-5">
+    <section className="page contact-page py-5">
       <div className="container">
         <div className="row g-4 align-items-stretch">
           <div className="col-lg-6">
