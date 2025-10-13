@@ -1,9 +1,9 @@
+D:\MyPro1\telegrambot\src\main\java\com\tammudu\chat\GeminiChatService.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\cmds\CommandHandler.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\cmds\UpdateHandler.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\config\ConfigLoader.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\config\Proxies.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\config\RandomBillingInfo.java
-D:\MyPro1\telegrambot\src\main\java\com\tammudu\files\BinLookupService.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\files\CardGenerator.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\files\Main.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\files\PaymentTelegramBot.java
@@ -13,3 +13,4 @@ D:\MyPro1\telegrambot\src\main\java\com\tammudu\managers\AdminManager.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\managers\BinManager.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\managers\BotSessionManager.java
 D:\MyPro1\telegrambot\src\main\java\com\tammudu\managers\UserManager.java
+D:\MyPro1\telegrambot\src\main\java\com\tammudu\services\BinLookupService.java

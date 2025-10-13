@@ -1,4 +1,12 @@
 import { PortfolioData, NavItem } from '../types';
+import heroPortraitMain from '../images/mewithdesk1.png';
+import heroPortrait1 from '../images/AI-Portrait1.png';
+import heroPortrait2 from '../images/AI-Portrait2.png';
+import heroPortrait3 from '../images/AI-Portrait3.png';
+import heroPortrait4 from '../images/AI-Portrait4.png';
+import heroPortrait5 from '../images/AI-Portrait5.png';
+import heroPortrait6 from '../images/AI-Portrait6.png';
+import heroPortrait7 from '../images/AI-Portrait7.png';
 
 export const navItems: NavItem[] = [
   { label: 'Home', route: 'home' },
@@ -18,16 +26,16 @@ export const portfolioData: PortfolioData = {
     introduction:
       'I combine analytical thinking, structured documentation, and collaborative communication to keep services healthy, resolve incidents, and turn feedback into measurable improvements.',
     photo: {
-      src: 'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Half_Img/mewithdesk1.png',
+      src: heroPortraitMain,
       alt: 'Portrait of Naseeruddin Shaik',
       gallery: [
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait1.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait2.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait3.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait4.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait5.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait6.png',
-        'https://naseeruddinshaik.me/naseeruddinshaik.me/Images/Ai_gen_IMG/Portraits/AI-Portrait7.png',
+        heroPortrait1,
+        heroPortrait2,
+        heroPortrait3,
+        heroPortrait4,
+        heroPortrait5,
+        heroPortrait6,
+        heroPortrait7,
       ],
       slideshowIntervalMs: 1200,
       slideshowFadeMs: 600,
@@ -52,7 +60,7 @@ export const portfolioData: PortfolioData = {
     socials: [
       { label: 'LinkedIn', href: 'https://www.linkedin.com/in/naseeruddin-shaik-7a3104249/' },
       { label: 'Instagram', href: 'https://www.instagram.com/u.s.t.a.a.d___7117/' },
-      { label: 'Facebook', href: '#' },
+      { label: 'Facebook', href: 'https://m.facebook.com/naseeruddin.shaikh.127/' },
     ],
     stats: [
       { label: 'Hands-on support', value: '8+ months', detail: 'Service desk & application support rotations' },
@@ -302,6 +310,7 @@ export const portfolioData: PortfolioData = {
       { label: 'LinkedIn', href: 'https://www.linkedin.com/in/naseeruddin-shaik-7a3104249/' },
       { label: 'Email', href: 'mailto:naseer3504581@gmail.com' },
       { label: 'Phone', href: 'tel:+918143214862' },
+      { label: 'Facebook', href: 'https://m.facebook.com/naseeruddin.shaikh.127/' },
     ],
     schedule: [
       { label: 'Discovery call', slots: '30-minute intro sessions available this week' },
