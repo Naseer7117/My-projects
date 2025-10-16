@@ -1,4 +1,4 @@
-package com.tammudu.chat;
+﻿package com.tammudu.chat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tammudu.config.ConfigLoader;
 import com.tammudu.config.Proxies;
 import com.tammudu.config.Proxies.ProxyInfo;
+import com.tammudu.managers.ConversationHistoryManager;
 import okhttp3.Authenticator;
 import okhttp3.ConnectionPool;
 import okhttp3.Credentials;
@@ -52,7 +53,7 @@ public final class GeminiChatService {
         return apiKey != null && !apiKey.isEmpty();
     }
 
-    public static String generateReply(String userMessage, String firstName) throws IOException {
+    public static String generateReply(List<ConversationHistoryManager.Entry> history, String firstName) throws IOException {
         String apiKey = resolveApiKey();
         if (apiKey == null || apiKey.isEmpty()) {
             throw new IllegalStateException("Gemini API key is not configured.");
@@ -66,13 +67,32 @@ public final class GeminiChatService {
                 .addQueryParameter("key", apiKey)
                 .build();
 
-        String prompt = buildPrompt(userMessage, firstName);
-
         ObjectNode payload = MAPPER.createObjectNode();
+
+        String systemPrompt = resolveSystemPrompt();
+        if (!systemPrompt.isBlank()) {
+            ObjectNode systemInstruction = payload.putObject("systemInstruction");
+            ArrayNode parts = systemInstruction.putArray("parts");
+            parts.addObject().put("text", systemPrompt);
+        }
+
         ArrayNode contents = payload.putArray("contents");
-        ObjectNode content = contents.addObject();
-        ArrayNode parts = content.putArray("parts");
-        parts.addObject().put("text", prompt);
+        if (history != null && !history.isEmpty()) {
+            for (ConversationHistoryManager.Entry entry : history) {
+                ObjectNode contentNode = contents.addObject();
+                contentNode.put("role", entry.role().apiRole());
+                ArrayNode parts = contentNode.putArray("parts");
+                parts.addObject().put("text", entry.text());
+            }
+        } else {
+            ObjectNode contentNode = contents.addObject();
+            contentNode.put("role", "user");
+            ArrayNode parts = contentNode.putArray("parts");
+            String fallback = firstName != null && !firstName.isBlank()
+                    ? firstName.trim() + ": hello"
+                    : "hello";
+            parts.addObject().put("text", fallback);
+        }
 
         ObjectNode generationConfig = payload.putObject("generationConfig");
         generationConfig.put("temperature", resolveTemperature());
@@ -119,17 +139,22 @@ public final class GeminiChatService {
         throw new IOException("Gemini request failed for an unknown reason.");
     }
 
-    private static String buildPrompt(String userMessage, String firstName) {
-        String systemPrompt = resolveSystemPrompt();
-        StringBuilder prompt = new StringBuilder();
-        if (systemPrompt != null && !systemPrompt.isBlank()) {
-            prompt.append(systemPrompt.trim()).append("\n\n");
+    private static boolean shouldRetry(int statusCode) {
+        return statusCode == 429 || (statusCode >= 500 && statusCode < 600);
+    }
+
+    private static void sleepWithBackoff(int attempt) {
+        long base = RETRY_BASE_DELAY_MILLIS * (1L << Math.min(attempt, 6));
+        long jitter = ThreadLocalRandom.current().nextLong(RETRY_BASE_DELAY_MILLIS);
+        sleepQuietly(base + jitter);
+    }
+
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
         }
-        if (firstName != null && !firstName.isBlank()) {
-            prompt.append(firstName.trim()).append(" says: ");
-        }
-        prompt.append(userMessage);
-        return prompt.toString();
     }
 
     private static String resolveApiKey() {
@@ -168,24 +193,6 @@ public final class GeminiChatService {
         }
     }
 
-    private static boolean shouldRetry(int statusCode) {
-        return statusCode == 429 || (statusCode >= 500 && statusCode < 600);
-    }
-
-    private static void sleepWithBackoff(int attempt) {
-        long base = RETRY_BASE_DELAY_MILLIS * (1L << Math.min(attempt, 6));
-        long jitter = ThreadLocalRandom.current().nextLong(RETRY_BASE_DELAY_MILLIS);
-        sleepQuietly(base + jitter);
-    }
-
-    private static void sleepQuietly(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     private static String extractContent(String responseText) throws IOException {
         JsonNode root = MAPPER.readTree(responseText);
         JsonNode candidates = root.path("candidates");
@@ -203,7 +210,7 @@ public final class GeminiChatService {
         JsonNode firstCandidate = candidates.get(0);
         String finishReason = firstCandidate.path("finishReason").asText("");
         if ("SAFETY".equalsIgnoreCase(finishReason)) {
-            return "I’m sorry, but I can’t help with that request.";
+            return "I'm sorry, but I can't help with that request.";
         }
 
         String rawText = firstCandidate.path("text").asText("");

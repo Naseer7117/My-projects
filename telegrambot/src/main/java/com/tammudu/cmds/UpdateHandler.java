@@ -5,6 +5,7 @@ import com.tammudu.managers.*;
 import com.tammudu.chat.GeminiChatService;
 import com.tammudu.logs.BotLogger;
 
+import java.util.List;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -142,6 +143,7 @@ public class UpdateHandler {
                 }
             } else if (messageText.startsWith("/stop")) {
                 BotSessionManager.resetSession(chatId);  // 🔄 clear all pending session flags
+                ConversationHistoryManager.clear(chatId);
                 bot.sendMessage(chatId, "🛑 All active processes stopped. Bot is now idle.", false);
             }
             else if (messageText.toLowerCase().startsWith("/bin")) {
@@ -158,9 +160,13 @@ public class UpdateHandler {
                 String firstName = update.getMessage().getFrom() != null
                         ? update.getMessage().getFrom().getFirstName()
                         : null;
+                String formattedUserMessage = formatUserMessage(firstName, messageText);
+                ConversationHistoryManager.recordUserMessage(chatId, formattedUserMessage);
+                List<ConversationHistoryManager.Entry> history = ConversationHistoryManager.getRecentHistory(chatId);
                 bot.runAsync(() -> {
                     try {
-                        String aiResponse = GeminiChatService.generateReply(messageText, firstName);
+                        String aiResponse = GeminiChatService.generateReply(history, firstName);
+                        ConversationHistoryManager.recordAssistantMessage(chatId, aiResponse);
                         bot.sendMessage(chatId, aiResponse, false);
                     } catch (Exception ex) {
                         String reason = sanitizeErrorMessage(ex.getMessage());
@@ -201,5 +207,15 @@ public class UpdateHandler {
             cleaned = cleaned.substring(0, 197) + "...";
         }
         return cleaned;
+    }
+
+    private static String formatUserMessage(String firstName, String message) {
+        if (message == null) {
+            return "";
+        }
+        if (firstName == null || firstName.isBlank()) {
+            return message;
+        }
+        return firstName.trim() + ": " + message;
     }
 }
