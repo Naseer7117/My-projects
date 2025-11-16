@@ -32,8 +32,8 @@ public class PaymentTelegramBot extends TelegramLongPollingBot {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> TASK_EXECUTOR.shutdown()));
     }
 
-    private static final String BOT_USERNAME = ConfigLoader.get("bot.username");
-    private static final String BOT_TOKEN = ConfigLoader.get("bot.token");
+    private static final String BOT_USERNAME = requireCredential("bot.username", "BOT_USERNAME", "Telegram bot username");
+    private static final String BOT_TOKEN = requireCredential("bot.token", "BOT_TOKEN", "Telegram bot token");
 
     private static final long DEV_ID = 1339935410L; // <-- Your real DEV Telegram ID
 
@@ -101,5 +101,14 @@ public class PaymentTelegramBot extends TelegramLongPollingBot {
             thread.setDaemon(true);
             return thread;
         }
+    }
+
+    private static String requireCredential(String propertyKey, String envKey, String displayName) {
+        String value = ConfigLoader.getOrEnv(propertyKey, envKey);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(displayName + " is not configured. "
+                    + "Set it in config.properties or via the " + envKey + " environment variable.");
+        }
+        return value.trim();
     }
 }

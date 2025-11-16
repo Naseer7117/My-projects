@@ -1,4 +1,4 @@
-﻿package com.tammudu.chat;
+package com.tammudu.chat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
