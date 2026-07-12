@@ -1,5 +1,16 @@
+/*
+ * ProjectsPage.tsx — the PROJECTS page.
+ *
+ * Content comes from portfolioData.projects. It renders:
+ *   - the featured project cards (title, description, contributions, outcomes,
+ *     tech tags, and optional "View code" / "Live demo" links),
+ *   - smaller "labs" cards,
+ *   - a 3-step "how I build" process row.
+ * A "View code"/"Live demo" link only appears if the project has a `repoUrl`/
+ * `liveUrl` in the data — otherwise it's skipped.
+ */
 import React from 'react';
-import { ProjectsContent } from '../types';
+import { ProjectsContent } from 'types';
 
 type ProjectsPageProps = {
   data: ProjectsContent;
@@ -8,11 +19,11 @@ type ProjectsPageProps = {
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
   <section className="page py-5">
     <div className="container">
-      <h2 className="section-title text-center mb-5">Selected work</h2>
+      <h2 className="section-title text-center mb-5" data-reveal>Selected work</h2>
       <div className="row g-4 projects-featured-grid">
         {data.featured.map((project) => (
-          <div className="col-lg-4" key={project.title}>
-            <div className="card project-card project-card--featured h-100">
+          <div className="col-lg-4" key={project.title} data-reveal>
+            <div className="card project-card project-card--featured h-100" data-tilt="5">
               <div className="card-body d-flex flex-column">
                 <span className="badge rounded-pill text-bg-primary align-self-start">Featured</span>
                 <h3 className="h5 mt-3">{project.title}</h3>
@@ -35,13 +46,37 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
                   </ul>
                 </div>
                 <div className="mt-auto">
-                  <div className="d-flex flex-wrap gap-2 mt-3">
+                  <div className="d-flex flex-wrap gap-2 mt-3 project-tech-row">
                     {project.tech.map((tech) => (
-                      <span className="badge rounded-pill bg-dark-subtle text-light" key={tech}>
+                      <span className="tech-tag" key={tech}>
                         {tech}
                       </span>
                     ))}
                   </div>
+                  {project.repoUrl || project.liveUrl ? (
+                    <div className="project-links mt-3">
+                      {project.repoUrl ? (
+                        <a
+                          className="project-link"
+                          href={project.repoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span aria-hidden="true">↗</span> View code
+                        </a>
+                      ) : null}
+                      {project.liveUrl ? (
+                        <a
+                          className="project-link"
+                          href={project.liveUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span aria-hidden="true">↗</span> Live demo
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -51,8 +86,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
 
       <div className="row g-4 mt-1 projects-labs-grid">
         {data.labs.map((lab) => (
-          <div className="col-md-6" key={lab.title}>
-            <div className="card soft-card project-card--lab h-100">
+          <div className="col-md-6" key={lab.title} data-reveal>
+            <div className="card soft-card project-card--lab h-100" data-tilt="4">
               <div className="card-body">
                 <h3 className="h5">{lab.title}</h3>
                 <p className="text-secondary">{lab.description}</p>
@@ -67,7 +102,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
 
       <div className="row g-4 mt-1 projects-process-grid">
         {data.process.map((step) => (
-          <div className="col-md-4" key={step.title}>
+          <div className="col-md-4" key={step.title} data-reveal>
             <div className="card project-card--process h-100">
               <div className="card-body">
                 <h3 className="h6 text-uppercase text-accent">{step.title}</h3>

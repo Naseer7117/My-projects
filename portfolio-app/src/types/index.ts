@@ -1,3 +1,16 @@
+/*
+ * types.ts — THE "SHAPES" of the content.
+ *
+ * These TypeScript types describe exactly what fields the content in
+ * data/portfolioData.ts must have, and whether each is text (string), a number,
+ * or a list ([]). If you add a field to the content that isn't described here,
+ * TypeScript will show an error — that's how it protects you from typos.
+ *
+ * A `?` after a field name (e.g. `detail?: string`) means that field is
+ * OPTIONAL — you can leave it out.
+ */
+
+// The five pages. If you add a new page tab, add its name here too.
 export type RouteKey = 'home' | 'about' | 'skills' | 'projects' | 'contact';
 
 export type NavItem = {
@@ -9,6 +22,12 @@ export type Stat = {
   label: string;
   value: string;
   detail?: string;
+};
+
+export type Metric = {
+  value: number;
+  suffix?: string;
+  label: string;
 };
 
 export type Spotlight = {
@@ -33,7 +52,6 @@ export type SkillCluster = {
   title: string;
   summary: string;
   focus: string[];
-  proficiency: number;
 };
 
 export type ToolchainItem = {
@@ -46,6 +64,24 @@ export type Workflow = {
   description: string;
 };
 
+export type Credential = {
+  title: string;
+  issuer: string;
+  kind: string; // e.g. "Certification" or "Internship"
+};
+
+export type Education = {
+  degree: string;
+  institution: string;
+  period: string;
+  detail?: string;
+};
+
+export type Language = {
+  name: string;
+  level: string;
+};
+
 export type FeaturedProject = {
   title: string;
   subtitle: string;
@@ -53,6 +89,8 @@ export type FeaturedProject = {
   contributions: string[];
   outcomes: string[];
   tech: string[];
+  repoUrl?: string;
+  liveUrl?: string;
 };
 
 export type LabProject = {
@@ -99,6 +137,7 @@ export type HeroContent = {
   spotlight: Spotlight[];
   socials?: SocialLink[];
   stats: Stat[];
+  metrics?: Metric[];
   availabilityNote: string;
 };
 
@@ -107,12 +146,16 @@ export type AboutContent = {
   biography: string[];
   timeline: TimelineItem[];
   values: ValueHighlight[];
+  education: Education[];
+  languages: Language[];
 };
 
 export type SkillsContent = {
   clusters: SkillCluster[];
   toolchain: ToolchainItem[];
   workflows: Workflow[];
+  certifications: Credential[];
+  strengths: string[];
 };
 
 export type ProjectsContent = {

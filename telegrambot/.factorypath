@@ -142,4 +142,6 @@
     <factorypathentry kind="VARJAR" id="M2_REPO/org/junit/platform/junit-platform-commons/1.8.2/junit-platform-commons-1.8.2.jar" enabled="true" runInBatchMode="false"/>
     <factorypathentry kind="VARJAR" id="M2_REPO/org/junit/jupiter/junit-jupiter-api/5.8.2/junit-jupiter-api-5.8.2.jar" enabled="true" runInBatchMode="false"/>
     <factorypathentry kind="VARJAR" id="M2_REPO/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar" enabled="true" runInBatchMode="false"/>
+    <factorypathentry kind="VARJAR" id="M2_REPO/com/stripe/stripe-java/24.22.0/stripe-java-24.22.0.jar" enabled="true" runInBatchMode="false"/>
+    <factorypathentry kind="VARJAR" id="M2_REPO/com/google/code/gson/gson/2.9.1/gson-2.9.1.jar" enabled="true" runInBatchMode="false"/>
 </factorypath>
