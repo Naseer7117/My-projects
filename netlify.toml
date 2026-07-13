@@ -1,0 +1,8 @@
+# Netlify build configuration for this monorepo.
+#
+# Only the portfolio-app folder is installed, built, and published. Nothing
+# else in this repository (telegrambot, Java, Python) is ever deployed.
+[build]
+  base = "portfolio-app"
+  command = "npm run build"
+  publish = "portfolio-app/build"
