@@ -121,6 +121,13 @@ export type SocialLink = {
   href: string;
 };
 
+// Icon social buttons shown in the footer. Set href to '#' (or '') to leave a
+// button as a not-yet-linked placeholder; paste your real URL to activate it.
+export type SocialMedia = {
+  platform: 'facebook' | 'instagram' | 'github' | 'youtube';
+  href: string;
+};
+
 export type HeroContent = {
   name: string;
   role: string;
@@ -180,4 +187,5 @@ export type PortfolioData = {
   skills: SkillsContent;
   projects: ProjectsContent;
   contact: ContactContent;
+  socialMedia: SocialMedia[];
 };

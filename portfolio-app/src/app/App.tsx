@@ -147,7 +147,7 @@ const App: React.FC = () => {
 
       {isHome ? <HeroTicker footer /> : null}
 
-      <Footer name={hero.name} />
+      <Footer name={hero.name} socials={portfolioData.socialMedia} />
     </div>
   );
 };
