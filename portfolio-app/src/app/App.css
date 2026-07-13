@@ -405,6 +405,147 @@ a:focus {
   }
 }
 
+/* ---------- Page scan (the real content loads "scanned", then resolves) ----------
+
+   .page-scan is a fixed overlay mounted on home/contact while the intro plays.
+   Its veil renders everything beneath it duotone + scan-lined via
+   backdrop-filter; the veil's top edge follows --sweep (0..100, driven by
+   PageScan.tsx), so as the beam travels down, content above it shows normal. */
+
+.page-scan {
+  position: fixed;
+  inset: 0;
+  z-index: 150000; /* under the intro (200000), above everything else */
+  pointer-events: none;
+  --sweep: 0;
+}
+
+.page-scan__veil {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  top: calc(var(--sweep) * 1%);
+  overflow: hidden; /* keep the glitch bands inside the un-scanned region */
+  /* blur(6px) makes the un-scanned content illegible — the beam "decodes" it */
+  backdrop-filter: blur(6px) grayscale(1) brightness(0.78) contrast(1.35) saturate(0.5);
+  -webkit-backdrop-filter: blur(6px) grayscale(1) brightness(0.78) contrast(1.35) saturate(0.5);
+  background-image:
+    linear-gradient(180deg, rgba(21, 84, 105, 0.3), rgba(28, 48, 110, 0.3)),
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0) 0 2px, rgba(0, 0, 0, 0.3) 2px 3px),
+    radial-gradient(rgba(0, 0, 0, 0.35) 1px, transparent 1.5px);
+  background-size: auto, auto, 4px 4px;
+  animation: veil-glitch 1.1s steps(1) infinite;
+}
+
+/* Corrupted-signal flicker: the whole veil twitches between filter states. */
+@keyframes veil-glitch {
+  0%, 100% {
+    backdrop-filter: blur(6px) grayscale(1) brightness(0.78) contrast(1.35) saturate(0.5);
+    -webkit-backdrop-filter: blur(6px) grayscale(1) brightness(0.78) contrast(1.35) saturate(0.5);
+    transform: translateX(0);
+  }
+  14% {
+    backdrop-filter: blur(8px) grayscale(1) brightness(0.95) contrast(1.6) saturate(0.35) hue-rotate(14deg);
+    -webkit-backdrop-filter: blur(8px) grayscale(1) brightness(0.95) contrast(1.6) saturate(0.35) hue-rotate(14deg);
+    transform: translateX(2px);
+  }
+  19% {
+    backdrop-filter: blur(5px) grayscale(1) brightness(0.7) contrast(1.25) saturate(0.6) hue-rotate(-18deg);
+    -webkit-backdrop-filter: blur(5px) grayscale(1) brightness(0.7) contrast(1.25) saturate(0.6) hue-rotate(-18deg);
+    transform: translateX(-2px);
+  }
+  23% {
+    transform: translateX(0);
+  }
+  57% {
+    backdrop-filter: blur(7px) grayscale(1) brightness(0.88) contrast(1.5) saturate(0.4) hue-rotate(-10deg);
+    -webkit-backdrop-filter: blur(7px) grayscale(1) brightness(0.88) contrast(1.5) saturate(0.4) hue-rotate(-10deg);
+    transform: translateX(-3px);
+  }
+  62% {
+    transform: translateX(0);
+  }
+}
+
+/* Glitch bands: horizontal slices of corruption that jump around the veiled
+   region — inverted/hue-shifted strips with an RGB-split tint. */
+.page-scan__veil::before,
+.page-scan__veil::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.page-scan__veil::before {
+  height: 26px;
+  background: rgba(255, 0, 90, 0.09);
+  backdrop-filter: invert(0.85) hue-rotate(160deg) contrast(1.6);
+  -webkit-backdrop-filter: invert(0.85) hue-rotate(160deg) contrast(1.6);
+  animation: glitch-band-a 0.9s steps(1) infinite;
+}
+.page-scan__veil::after {
+  height: 12px;
+  background: rgba(0, 255, 255, 0.1);
+  backdrop-filter: invert(0.7) hue-rotate(-120deg) contrast(1.8) blur(1px);
+  -webkit-backdrop-filter: invert(0.7) hue-rotate(-120deg) contrast(1.8) blur(1px);
+  animation: glitch-band-b 1.3s steps(1) infinite;
+}
+
+@keyframes glitch-band-a {
+  0% { top: 14%; opacity: 0; transform: translateX(0); }
+  6% { opacity: 0.9; transform: translateX(-7px); }
+  13% { opacity: 0; }
+  44% { top: 62%; opacity: 0.85; transform: translateX(6px); }
+  52% { opacity: 0; }
+  81% { top: 37%; opacity: 0.75; transform: translateX(-5px); }
+  88% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes glitch-band-b {
+  0% { top: 72%; opacity: 0; transform: translateX(0); }
+  9% { opacity: 0.9; transform: translateX(8px); }
+  15% { opacity: 0; }
+  38% { top: 24%; opacity: 0.8; transform: translateX(-8px); }
+  45% { opacity: 0; }
+  69% { top: 51%; opacity: 0.85; transform: translateX(5px); }
+  76% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Fallback when backdrop-filter is unsupported: a heavier plain tint that
+   still sweeps away — content is dimmed rather than glitched. */
+@supports not ((backdrop-filter: grayscale(1)) or (-webkit-backdrop-filter: grayscale(1))) {
+  .page-scan__veil {
+    background-color: rgba(7, 26, 36, 0.72);
+  }
+}
+
+.page-scan__beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--sweep) * 1% - 2px);
+  height: 3px;
+  background: #7ff0fb;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.9), 0 0 46px rgba(34, 211, 238, 0.5);
+  opacity: min(1, calc((100 - var(--sweep)) / 4));
+}
+
+/* Quick variant of the intro (repeat loads): boot text appears faster. */
+.intro--quick .intro__brand {
+  animation-delay: 0.05s;
+}
+.intro--quick .intro__role {
+  animation-delay: 0.12s;
+}
+.intro--quick .intro__bar,
+.intro--quick .intro__count {
+  animation-delay: 0.18s;
+}
+
 /* Hold the hero title until the intro curtain lifts. */
 .intro-active .hero-word {
   animation-play-state: paused;
@@ -2143,7 +2284,8 @@ hr {
   .hero-portrait-scan {
     display: none !important;
   }
-  .intro {
+  .intro,
+  .page-scan {
     display: none !important;
   }
 }

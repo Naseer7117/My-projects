@@ -1,25 +1,41 @@
 import React from 'react';
+import { portfolioData } from 'content/portfolio';
+
+export type IntroVariant = 'full' | 'quick';
 
 type IntroProps = {
+  /** 'full' = first load of the session; 'quick' = a faster repeat version. */
+  variant?: IntroVariant;
   /** Fired when the exit (curtain-split) animation begins. */
   onExitStart?: () => void;
   /** Fired when the intro has fully finished and can be unmounted. */
   onDone: () => void;
 };
 
-const LOAD_MS = 1900; // counter 0 -> 100
-const HOLD_MS = 220; // brief pause at 100%
+/*
+ * Intro — the full-screen brand loading view: "> Naseeruddin Shaik", role, and
+ * a progress bar running 0 → 100%. When it completes, two panels split apart
+ * to reveal the site. On home/contact the revealed content starts out
+ * "scanned" and is resolved by the PageScan effect (see PageScan.tsx) — App
+ * wires the two together.
+ *
+ * The FULL version plays once per browser session; later reloads get the quick
+ * version (App decides via sessionStorage). Never rendered under
+ * prefers-reduced-motion.
+ */
+
+const TIMINGS = {
+  full: { loadMs: 1800, holdMs: 200 },
+  quick: { loadMs: 600, holdMs: 120 },
+} as const;
 const EXIT_MS = 850; // curtain split
 
-/**
- * Full-screen intro loader. A brand mark + progress counter animate in, the
- * counter runs to 100%, then two panels split apart to reveal the site.
- * Only rendered on the first visit of a session, and never under
- * prefers-reduced-motion (that decision lives in App).
- */
-const Intro: React.FC<IntroProps> = ({ onExitStart, onDone }) => {
+const { hero } = portfolioData;
+
+const Intro: React.FC<IntroProps> = ({ variant = 'full', onExitStart, onDone }) => {
   const [count, setCount] = React.useState(0);
   const [exiting, setExiting] = React.useState(false);
+  const { loadMs, holdMs } = TIMINGS[variant];
 
   React.useEffect(() => {
     let rafId = 0;
@@ -28,14 +44,12 @@ const Intro: React.FC<IntroProps> = ({ onExitStart, onDone }) => {
 
     const tick = (ts: number) => {
       if (start === null) start = ts;
-      const progress = Math.min(1, (ts - start) / LOAD_MS);
-      // ease-out so it decelerates toward 100
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.round(eased * 100));
+      const progress = Math.min(1, (ts - start) / loadMs);
+      setCount(Math.round(progress * 100));
       if (progress < 1) {
         rafId = requestAnimationFrame(tick);
       } else {
-        holdId = window.setTimeout(() => setExiting(true), HOLD_MS);
+        holdId = window.setTimeout(() => setExiting(true), holdMs);
       }
     };
     rafId = requestAnimationFrame(tick);
@@ -44,7 +58,7 @@ const Intro: React.FC<IntroProps> = ({ onExitStart, onDone }) => {
       cancelAnimationFrame(rafId);
       window.clearTimeout(holdId);
     };
-  }, []);
+  }, [loadMs, holdMs]);
 
   React.useEffect(() => {
     if (!exiting) return;
@@ -54,14 +68,18 @@ const Intro: React.FC<IntroProps> = ({ onExitStart, onDone }) => {
   }, [exiting, onExitStart, onDone]);
 
   return (
-    <div className={`intro${exiting ? ' intro--exit' : ''}`} role="presentation" aria-hidden="true">
+    <div
+      className={`intro intro--${variant}${exiting ? ' intro--exit' : ''}`}
+      role="presentation"
+      aria-hidden="true"
+    >
       <div className="intro__panel intro__panel--top" />
       <div className="intro__panel intro__panel--bottom" />
       <div className="intro__content">
         <div className="intro__brand">
-          <span className="intro__caret">&gt;</span> Naseeruddin&nbsp;Shaik
+          <span className="intro__caret">&gt;</span> {hero.name}
         </div>
-        <div className="intro__role">Software Engineer</div>
+        <div className="intro__role">{hero.role}</div>
         <div className="intro__bar">
           <span className="intro__bar-fill" style={{ width: `${count}%` }} />
         </div>
