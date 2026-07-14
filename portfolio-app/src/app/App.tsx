@@ -11,6 +11,7 @@
  * Everything with real logic lives elsewhere (hooks/, components/, features/).
  */
 import React from 'react';
+import { LazyMotion, domAnimation } from 'framer-motion';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 
@@ -27,6 +28,7 @@ import BackgroundFx from 'components/effects/BackgroundFx';
 import HeroTicker from 'components/effects/HeroTicker';
 import Navbar from 'components/layout/Navbar';
 import Footer from 'components/layout/Footer';
+import PageTransition from 'components/effects/PageTransition';
 
 // The FULL intro plays once per browser session; later reloads in the same
 // session get the QUICK version. No intro at all under reduced-motion.
@@ -121,34 +123,38 @@ const App: React.FC = () => {
   const isHome = route === 'home';
 
   return (
-    <div className="app">
-      {/* The load sequence: the brand intro plays; on scan-enabled pages the
-          content behind it is veiled in a "scanned" look (PageScan), and as the
-          curtains open a beam sweeps down resolving it to normal. Navigating to
-          a scan-enabled page replays a quick scan (keyed by scan.id). */}
-      {introVariant ? (
-        <Intro variant={introVariant} onExitStart={releaseHero} onDone={handleIntroDone} />
-      ) : null}
-      {scan ? (
-        <PageScan key={scan.id} variant={scan.variant} running={scan.running} onDone={handleScanDone} />
-      ) : null}
+    <LazyMotion features={domAnimation} strict>
+      <div className="app">
+        {/* The load sequence: the brand intro plays; on scan-enabled pages the
+            content behind it is veiled in a "scanned" look (PageScan), and as the
+            curtains open a beam sweeps down resolving it to normal. Navigating to
+            a scan-enabled page replays a quick scan (keyed by scan.id). */}
+        {introVariant ? (
+          <Intro variant={introVariant} onExitStart={releaseHero} onDone={handleIntroDone} />
+        ) : null}
+        {scan ? (
+          <PageScan key={scan.id} variant={scan.variant} running={scan.running} onDone={handleScanDone} />
+        ) : null}
 
-      <BackgroundFx />
+        <BackgroundFx />
 
-      <Navbar items={navItems} active={route} onNavigate={navigate} heroName={hero.name} />
+        <Navbar items={navItems} active={route} onNavigate={navigate} heroName={hero.name} />
 
-      {isHome ? <HeroTicker /> : null}
+        {isHome ? <HeroTicker /> : null}
 
-      <main className="page-shell">
-        <ErrorBoundary key={route}>
-          {pageRenderers[route]({ data: portfolioData, navigate })}
-        </ErrorBoundary>
-      </main>
+        <main className="page-shell">
+          <PageTransition route={route}>
+            <ErrorBoundary key={route}>
+              {pageRenderers[route]({ data: portfolioData, navigate })}
+            </ErrorBoundary>
+          </PageTransition>
+        </main>
 
-      {isHome ? <HeroTicker footer /> : null}
+        {isHome ? <HeroTicker footer /> : null}
 
-      <Footer name={hero.name} socials={portfolioData.socialMedia} />
-    </div>
+        <Footer name={hero.name} socials={portfolioData.socialMedia} />
+      </div>
+    </LazyMotion>
   );
 };
 

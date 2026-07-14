@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { hasFinePointer, prefersReducedMotion } from '../../lib/env';
 import { DEFAULT_TILT_DEG } from '../../lib/constants';
+import { useElementEffect } from './useElementEffect';
 
 /**
  * Attach a 3D "lean toward the cursor" effect to every [data-tilt] element.
@@ -49,15 +49,5 @@ function setupTilt(): () => void {
 
 /** Re-attach tilt handlers whenever the route changes (new cards mount). */
 export function useTilt(routeKey: string): void {
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let cleanup: () => void = () => undefined;
-    const id = requestAnimationFrame(() => {
-      cleanup = setupTilt();
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      cleanup();
-    };
-  }, [routeKey]);
+  useElementEffect(routeKey, setupTilt);
 }

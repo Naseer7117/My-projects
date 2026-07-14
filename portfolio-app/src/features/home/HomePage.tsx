@@ -13,12 +13,7 @@
  */
 import React from 'react';
 import { HeroContent, RouteKey } from 'types';
-
-// The portrait cross-dissolves between images using one smooth blur effect.
-// (Kept as a list so the slideshow logic below stays unchanged.)
-const HERO_PORTRAIT_ANIMATIONS = ['blur'] as const;
-
-type HeroPortraitAnimationKey = (typeof HERO_PORTRAIT_ANIMATIONS)[number];
+import { usePortraitSlideshow } from 'hooks/interactions/usePortraitSlideshow';
 
 type HomePageProps = {
   data: HeroContent;
@@ -38,15 +33,15 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
     }
     return gallery[0] === data.photo.src ? gallery : [data.photo.src, ...gallery];
   }, [data.photo.gallery, data.photo.src]);
-  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
-  const slideshowTimerRef = React.useRef<number | null>(null);
-  const fadeTimeoutRef = React.useRef<number | null>(null);
-  const [previousImageSrc, setPreviousImageSrc] = React.useState<string | null>(null);
-  const [isCrossfading, setIsCrossfading] = React.useState(false);
-  const [activeAnimation, setActiveAnimation] = React.useState<HeroPortraitAnimationKey>(
-    HERO_PORTRAIT_ANIMATIONS[0]
-  );
   const fadeDuration = data.photo.slideshowFadeMs ?? 600;
+  const {
+    activeImageSrc: activeHeroImageSrc,
+    previousImageSrc,
+    isCrossfading,
+    activeAnimation,
+    onMouseEnter: handleMouseEnterPortrait,
+    onMouseLeave: handleMouseLeavePortrait,
+  } = usePortraitSlideshow(heroImages, data.photo.slideshowIntervalMs ?? 1200, fadeDuration);
   const portraitStageStyle = React.useMemo(
     () =>
       ({
@@ -60,75 +55,10 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
     setShowSocials((prev) => !prev);
     requestAnimationFrame(() => socialToggleRef.current?.blur());
   }, []);
-  const clearFadeTimeout = React.useCallback(() => {
-    if (fadeTimeoutRef.current !== null) {
-      window.clearTimeout(fadeTimeoutRef.current);
-      fadeTimeoutRef.current = null;
-    }
-  }, []);
-  const stopSlideshow = React.useCallback(() => {
-    if (slideshowTimerRef.current !== null) {
-      window.clearInterval(slideshowTimerRef.current);
-      slideshowTimerRef.current = null;
-    }
-    clearFadeTimeout();
-    setIsCrossfading(false);
-    setPreviousImageSrc(null);
-    setActiveAnimation(HERO_PORTRAIT_ANIMATIONS[0]);
-  }, [clearFadeTimeout]);
-  const advanceImage = React.useCallback(() => {
-    if (heroImages.length <= 1) {
-      return;
-    }
-    setActiveImageIndex((prev) => {
-      const nextIndex = (prev + 1) % heroImages.length;
-      const priorSrc = heroImages[prev] ?? null;
-      if (priorSrc) {
-        setPreviousImageSrc(priorSrc);
-        setIsCrossfading(true);
-        clearFadeTimeout();
-        fadeTimeoutRef.current = window.setTimeout(() => {
-          setIsCrossfading(false);
-          setPreviousImageSrc(null);
-          fadeTimeoutRef.current = null;
-        }, fadeDuration);
-      }
-      setActiveAnimation(HERO_PORTRAIT_ANIMATIONS[nextIndex % HERO_PORTRAIT_ANIMATIONS.length]);
-      return nextIndex;
-    });
-  }, [clearFadeTimeout, fadeDuration, heroImages]);
-  const handleMouseEnterPortrait = React.useCallback(() => {
-    if (heroImages.length <= 1 || slideshowTimerRef.current !== null) {
-      return;
-    }
-    const interval = data.photo.slideshowIntervalMs ?? 1200;
-    advanceImage();
-    slideshowTimerRef.current = window.setInterval(() => {
-      advanceImage();
-    }, interval);
-  }, [advanceImage, data.photo.slideshowIntervalMs, heroImages.length]);
 
-  const handleMouseLeavePortrait = React.useCallback(() => {
-    stopSlideshow();
-    setActiveImageIndex(0);
-    setActiveAnimation(HERO_PORTRAIT_ANIMATIONS[0]);
-  }, [stopSlideshow]);
-
-  React.useEffect(() => {
-    return () => stopSlideshow();
-  }, [stopSlideshow]);
-
-  React.useEffect(() => {
-    stopSlideshow();
-    setActiveImageIndex(0);
-    setActiveAnimation(HERO_PORTRAIT_ANIMATIONS[0]);
-  }, [heroImages, stopSlideshow]);
-
-  const activeHeroImageSrc = heroImages[activeImageIndex] ?? data.photo.src;
-  const stageAnimationClass = activeAnimation ?? HERO_PORTRAIT_ANIMATIONS[0];
   const heroPortraitStageClassName = [
     'hero-portrait-stage',
-    `animation-${stageAnimationClass}`,
+    `animation-${activeAnimation}`,
     isCrossfading ? 'is-crossfading' : '',
     previousImageSrc ? 'has-previous' : '',
   ]

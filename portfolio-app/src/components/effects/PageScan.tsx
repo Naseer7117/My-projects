@@ -1,5 +1,6 @@
 import React from 'react';
 import { IntroVariant } from 'components/effects/Intro';
+import { useRafProgress } from 'hooks/interactions/useRafProgress';
 
 type PageScanProps = {
   variant: IntroVariant;
@@ -30,40 +31,34 @@ const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) /
 
 const PageScan: React.FC<PageScanProps> = ({ variant, running, onDone }) => {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const duration = SWEEP_MS[variant];
 
+  // The sweep proper only starts after START_DELAY_MS (lets the curtains open
+  // a touch first); this gate is what useRafProgress's `active` flag drives.
+  const [sweeping, setSweeping] = React.useState(false);
   React.useEffect(() => {
-    if (!running) return;
-    const el = rootRef.current;
-    if (!el) return;
-
-    const duration = SWEEP_MS[variant];
-    let rafId = 0;
-    let start: number | null = null;
-
-    const delayId = window.setTimeout(() => {
-      const tick = (ts: number) => {
-        if (start === null) start = ts;
-        const p = Math.min(1, (ts - start) / duration);
-        el.style.setProperty('--sweep', `${ease(p) * 100}`);
-        if (p < 1) {
-          rafId = requestAnimationFrame(tick);
-        } else {
-          onDone();
-        }
-      };
-      rafId = requestAnimationFrame(tick);
-    }, START_DELAY_MS);
-
+    if (!running) {
+      setSweeping(false);
+      return;
+    }
+    const delayId = window.setTimeout(() => setSweeping(true), START_DELAY_MS);
     // Safety net: if rAF stalls (e.g. the tab is hidden mid-sweep), still
     // release the page. onDone is idempotent — App just unmounts us.
     const failsafeId = window.setTimeout(onDone, START_DELAY_MS + duration + 2000);
-
     return () => {
       window.clearTimeout(delayId);
       window.clearTimeout(failsafeId);
-      cancelAnimationFrame(rafId);
     };
-  }, [running, variant, onDone]);
+  }, [running, duration, onDone]);
+
+  useRafProgress(
+    duration,
+    (progress) => {
+      rootRef.current?.style.setProperty('--sweep', `${ease(progress) * 100}`);
+      if (progress >= 1) onDone();
+    },
+    sweeping
+  );
 
   return (
     <div className="page-scan" ref={rootRef} aria-hidden="true">

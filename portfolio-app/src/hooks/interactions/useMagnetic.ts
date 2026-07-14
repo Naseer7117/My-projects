@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
 import { hasFinePointer, prefersReducedMotion } from '../../lib/env';
 import { DEFAULT_MAGNETIC_STRENGTH } from '../../lib/constants';
+import { useElementEffect } from './useElementEffect';
 
 /**
  * Make buttons (and any [data-magnetic] element) drift toward the cursor while
@@ -56,15 +56,5 @@ function setupMagnetic(): () => void {
 
 /** Re-attach magnetic handlers whenever the route changes (new buttons mount). */
 export function useMagnetic(routeKey: string): void {
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let cleanup: () => void = () => undefined;
-    const id = requestAnimationFrame(() => {
-      cleanup = setupMagnetic();
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      cleanup();
-    };
-  }, [routeKey]);
+  useElementEffect(routeKey, setupMagnetic);
 }
