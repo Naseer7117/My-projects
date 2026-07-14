@@ -2085,10 +2085,100 @@ h1, h2, h3, h4, h5, h6 {
   border-top: 1px solid var(--border);
   background: rgba(5, 6, 13, 0.6);
 }
+.footer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+}
+
 .footer-credit {
   font-family: var(--mono);
   font-size: 0.82rem;
   color: var(--text-faint);
+}
+
+/* ---------- Social icon bar ---------- */
+
+.social-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease,
+    transform 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
+}
+
+.social-btn svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Each platform carries its own brand colour, used by the hover glow below. */
+.social-btn--github {
+  --brand: #e9eef4;
+  --brand-rgb: 233, 238, 244;
+}
+.social-btn--instagram {
+  --brand: #e4405f;
+  --brand-rgb: 228, 64, 95;
+}
+.social-btn--facebook {
+  --brand: #1877f2;
+  --brand-rgb: 24, 119, 242;
+}
+.social-btn--youtube {
+  --brand: #ff0033;
+  --brand-rgb: 255, 0, 51;
+}
+
+/* Hover: light up in the platform's brand colour with a matching glow. Applies
+   to real links and to the not-yet-linked placeholders alike, so you can see
+   each colour. */
+.social-btn:hover,
+a.social-btn:focus-visible {
+  opacity: 1;
+  color: var(--brand, var(--accent));
+  border-color: var(--brand, var(--accent));
+  background: rgba(var(--brand-rgb, 139, 123, 255), 0.12);
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 1px rgba(var(--brand-rgb, 139, 123, 255), 0.55),
+    0 8px 30px -6px rgba(var(--brand-rgb, 139, 123, 255), 0.8);
+  text-decoration: none;
+}
+
+/* Instagram: a multi-stop gradient wash to evoke its brand. */
+.social-btn--instagram:hover {
+  background: linear-gradient(
+    45deg,
+    rgba(254, 218, 117, 0.2),
+    rgba(225, 48, 108, 0.22),
+    rgba(129, 52, 175, 0.2),
+    rgba(79, 91, 213, 0.16)
+  );
+  box-shadow:
+    0 0 0 1px rgba(225, 48, 108, 0.55),
+    0 8px 30px -6px rgba(225, 48, 108, 0.85);
+}
+
+/* Not-yet-linked placeholder: dimmed at rest (lights up on hover like the rest). */
+.social-btn--empty {
+  color: var(--text-faint);
+  opacity: 0.5;
 }
 
 /* ---------- Error boundary fallback ---------- */

@@ -23,16 +23,19 @@
  * only have to update a link once.
  */
 import { PortfolioData, NavItem } from 'types';
-// The portrait photos. To use your own, drop a file in src/images/ and either
-// overwrite one of these files or add a new `import` line here.
-import heroPortraitMain from '../images/mewithdesk1.webp';
-import heroPortrait1 from '../images/AI-Portrait1.webp';
-import heroPortrait2 from '../images/AI-Portrait2.webp';
-import heroPortrait3 from '../images/AI-Portrait3.webp';
-import heroPortrait4 from '../images/AI-Portrait4.webp';
-import heroPortrait5 from '../images/AI-Portrait5.webp';
-import heroPortrait6 from '../images/AI-Portrait6.webp';
-import heroPortrait7 from '../images/AI-Portrait7.webp';
+// The portrait photos (real headshots, cropped to the 4:5 hero frame and
+// optimised to WebP). `heroPortraitMain` is the resting portrait; the rest cycle
+// as a slideshow when you hover the photo. To swap one, replace the file in
+// src/images/ or change an import line here.
+import heroPortraitMain from '../images/hero-main.webp';
+import heroPortrait1 from '../images/hero-1.webp';
+import heroPortrait2 from '../images/hero-2.webp';
+import heroPortrait3 from '../images/hero-3.webp';
+import heroPortrait4 from '../images/hero-4.webp';
+import heroPortrait5 from '../images/hero-5.webp';
+import heroPortrait6 from '../images/hero-6.webp';
+import heroPortrait7 from '../images/hero-7.webp';
+import heroPortrait8 from '../images/hero-8.webp';
 
 const GITHUB_URL = 'https://github.com/Naseer7117';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/naseeruddin-shaik-7a3104249/';
@@ -62,12 +65,13 @@ export const portfolioData: PortfolioData = {
       alt: 'Portrait of Naseeruddin Shaik',
       gallery: [
         heroPortrait1,
+        heroPortrait6,
+        heroPortrait7,
+        heroPortrait5,
         heroPortrait2,
         heroPortrait3,
         heroPortrait4,
-        heroPortrait5,
-        heroPortrait6,
-        heroPortrait7,
+        heroPortrait8,
       ],
       slideshowIntervalMs: 1500,
       slideshowFadeMs: 700,
@@ -422,4 +426,14 @@ export const portfolioData: PortfolioData = {
       { label: 'Start date', slots: 'Available for internships and roles alongside my MSc' },
     ],
   },
+
+  // Footer social buttons. Paste your real profile URLs here. A value of '#'
+  // shows the icon as a not-yet-linked placeholder (it activates once you add a
+  // URL). Verify the Instagram/Facebook links below — replace if they're wrong.
+  socialMedia: [
+    { platform: 'github', href: GITHUB_URL },
+    { platform: 'instagram', href: 'https://www.instagram.com/u.s.t.a.a.d___7117/' },
+    { platform: 'facebook', href: 'https://m.facebook.com/naseeruddin.shaikh.127/' },
+    { platform: 'youtube', href: '#' },
+  ],
 };

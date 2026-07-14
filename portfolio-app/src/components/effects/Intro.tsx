@@ -1,5 +1,6 @@
 import React from 'react';
 import { portfolioData } from 'content/portfolio';
+import { useRafProgress } from 'hooks/interactions/useRafProgress';
 
 export type IntroVariant = 'full' | 'quick';
 
@@ -36,29 +37,19 @@ const Intro: React.FC<IntroProps> = ({ variant = 'full', onExitStart, onDone }) 
   const [count, setCount] = React.useState(0);
   const [exiting, setExiting] = React.useState(false);
   const { loadMs, holdMs } = TIMINGS[variant];
+  const holdTimeoutRef = React.useRef(0);
 
-  React.useEffect(() => {
-    let rafId = 0;
-    let holdId = 0;
-    let start: number | null = null;
-
-    const tick = (ts: number) => {
-      if (start === null) start = ts;
-      const progress = Math.min(1, (ts - start) / loadMs);
+  useRafProgress(
+    loadMs,
+    (progress) => {
       setCount(Math.round(progress * 100));
-      if (progress < 1) {
-        rafId = requestAnimationFrame(tick);
-      } else {
-        holdId = window.setTimeout(() => setExiting(true), holdMs);
+      if (progress >= 1) {
+        holdTimeoutRef.current = window.setTimeout(() => setExiting(true), holdMs);
       }
-    };
-    rafId = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      window.clearTimeout(holdId);
-    };
-  }, [loadMs, holdMs]);
+    },
+    true
+  );
+  React.useEffect(() => () => window.clearTimeout(holdTimeoutRef.current), [loadMs, holdMs]);
 
   React.useEffect(() => {
     if (!exiting) return;
