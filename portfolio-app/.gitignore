@@ -11,6 +11,9 @@
 # production
 /build
 
+# mascot clip conversion staging output (scripts/convert_*.py)
+/scripts/out
+
 # misc
 .DS_Store
 .env.local

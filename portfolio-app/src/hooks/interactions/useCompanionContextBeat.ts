@@ -14,11 +14,10 @@ import { useRequestCompanionContextBeat } from './CompanionContext';
  *   Skills   — `peeking` near the first .skills-cluster-card
  *   Projects — `peeking` near the first .project-card--featured
  *   Contact  — `sitting` (longer hold) beside .contact-card
- *   Home     — NOT wired here; HomePage already has its own richer
- *              talking-handoff via CompanionContext (which outranks any
- *              context beat anyway), so a second competing beat there would
- *              only matter when narration is NOT active — deferred as
- *              low-value given Home's existing coverage.
+ *   Home     — `peeking` at the hero portrait (left side), wired in
+ *              HomePage.tsx with enabled = !narration.playing — the
+ *              talking-handoff outranks it, so the beat only plays when
+ *              the visitor is NOT running the narrated intro.
  *
  * The request goes through the SAME real Walk FSM every other "go stand
  * somewhere" caller uses (useCompanionBehavior's requestWalk): it measures
