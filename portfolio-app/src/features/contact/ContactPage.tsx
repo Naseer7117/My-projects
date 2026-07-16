@@ -10,12 +10,21 @@
  */
 import React from 'react';
 import { ContactContent } from 'types';
+import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
+import { useRequestCompanionCelebration } from 'hooks/interactions/CompanionContext';
 
 type ContactPageProps = {
   data: ContactContent;
 };
 
 const ContactPage: React.FC<ContactPageProps> = ({ data }) => {
+  // Context beat (§5): the longer contextual "waiting to hear from you" sit,
+  // beside the card containing the real mailto/GitHub links.
+  useCompanionContextBeat('contact', '.contact-card', 'sitting', { expression: 'content', ms: 9000 }, true);
+  // The mascot cheers when someone actually starts an email — the site's
+  // single most-wanted action.
+  const celebrate = useRequestCompanionCelebration();
+
   return (
     <section className="page contact-page py-5">
       <div className="container">
@@ -39,7 +48,7 @@ const ContactPage: React.FC<ContactPageProps> = ({ data }) => {
                 <span className="fw-semibold">{data.location}</span>
               </div>
               <div className="d-flex flex-wrap gap-3 mt-4">
-                <a className="btn btn-primary" href={`mailto:${data.email}`}>
+                <a className="btn btn-primary" href={`mailto:${data.email}`} onClick={celebrate}>
                   Email me
                 </a>
                 <a
