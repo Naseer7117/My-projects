@@ -39,11 +39,19 @@ export function minViewportForGutterRoaming(): number {
   return CONTENT_MAX_WIDTH + (EDGE_INSET * 2 + COMPANION_SIZE_DESKTOP) * 2;
 }
 
-/** Sets --companion-size on :root from the constants above, once, so CSS and
- * JS can never disagree on the desktop/mobile sizes. Call once at app mount. */
+// The single aspect ratio (width / height) every mascot clip is normalized to
+// by scripts/normalize_clips.py. The locked pose box in App.css derives its
+// width from --companion-size × this, so `object-fit: contain` seats every
+// clip at an identical scale with feet on the baseline. Changing the
+// normalizer's CANVAS_W/CANVAS_H means changing this in lockstep.
+export const COMPANION_POSE_ASPECT = 260 / 360; // 0.722
+
+/** Sets --companion-size and --companion-pose-aspect on :root from the
+ * constants above, once, so CSS and JS can never disagree. Call at app mount. */
 export function applyCompanionSizeCssVar(): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  root.style.setProperty('--companion-pose-aspect', `${COMPANION_POSE_ASPECT}`);
   const apply = () => {
     root.style.setProperty('--companion-size', `${companionSizeFor(window.innerWidth)}px`);
   };

@@ -72,12 +72,13 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 | Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1536px**), `fixedCornerPoint` (mobile bottom-right pocket), `peekEdgePoint(exposure)` (TRUE edge peek — container mostly off-screen), `offscreenHidePoint` (duck-away target), `targetedAnchorPoint` (context beats). Structural guarantee: outside the 1280px content column is empty background on every page. |
 | DOM perching | `src/lib/companionPerch.ts` | Finds perchable elements (hero portrait, `.section-title`, `.card`) that are fully in-viewport and wide enough, and measures their top border into mascot coordinates (`measurePerchSpan` re-runs on scroll so the mascot stays glued). Deliberately relaxes gutter-only roaming (owner request) — the mascot stands ABOVE elements, never on their content. |
 | The FSM | `src/hooks/interactions/useCompanionBehavior.ts` | idle → anticipation (220ms) → walking → **measured arrival** (dist < 6px AND speed < 30px/s for 2 consecutive frames — NEVER a timer) → recovery (260ms) → arrival action (sit/peek/wave/highFive) or idle. Position = `useSpring` (stiffness 120, damping 14, mass 0.8). Facing from x-velocity with 40px/s deadzone. Distance-synced stride: real px accumulate, 46px per cycle, written to `strideRef` + `--stride-phase`. Priority: talking handoff > everything (snaps, no walk); celebration only fires when parked. |
-| Idle variety | `src/hooks/interactions/useCompanionIdlePool.ts` | "Tier-B" idle subs = micro-behaviors WITHIN the idle state (blink, look around, stretch…, `COMPANION_IDLE_SUBS` in constants.ts, 9 entries), picked per idle hold with no immediate repeat. (There is no Tier-A system anymore — big behaviors like sit/peek are reachable only as walk arrival actions.) |
+| Idle variety | `src/hooks/interactions/useCompanionIdlePool.ts` | "Tier-B" idle subs = micro-behaviors WITHIN the idle state (`COMPANION_IDLE_SUBS`, 10 entries, 7 with their own clip). Picked from a **fair SHUFFLE BAG** — every sub plays once per pass before any repeat, reshuffle guards the seam against a back-to-back repeat. `peekSpecific()` lets the nap controller force 'doze'/'stretch'. (No Tier-A system — sit/peek are walk arrival actions only.) |
 | Per-page beats | `src/hooks/interactions/useCompanionContextBeat.ts` | One walk-to-element beat per route landing: Home→peek at hero portrait (left side, enabled only while narration is NOT playing — the talking handoff outranks it), About→sit at timeline, Skills/Projects→peek at first card, Contact→sit at card. |
 | Cursor encounter | `src/hooks/interactions/useCompanionCursorEncounter.ts` | notice (<180px, 300ms) → walk over → wave (or high-five if <90px) → dormant. Fine-pointer devices only. |
 | Cross-feature channels | `src/hooks/interactions/CompanionContext.tsx` | talking handoff (HomePage narration), context-beat requests, celebration requests (nonce-gated). |
 | Container physics | `src/components/effects/CompanionCharacter.tsx` | Wrapper chain `.companion > __stage (cursor tilt) > __squash (stiffness 200/damping 10, deliberately underdamped) > __bob (stride bob −4px·\|sin(π·phase)\| + rock 2° + hop arc) > __float (breathe/drift) > player`. Feet-anchored `transform-origin: 50% 100%`. |
-| Asset layer | `src/components/effects/AnimatedMascotPlayer.tsx` | `POSES` — a single webp-only table (src, `nativeFacing`, `facingMode`, kind 'img'\|'video'); 150ms AnimatePresence crossfade; two-tier preloading (idle+walk+run immediate, rest at browser idle, skipped under Save-Data). **Adding/replacing a state = drop the .webp in `public/assets/mascot/` + its `POSES` line.** |
+| Asset layer | `src/components/effects/AnimatedMascotPlayer.tsx` | `POSES` — a single webp-only table (src, `nativeFacing`, `facingMode`, kind 'img'\|'video'); 200ms AnimatePresence crossfade; two-tier preloading (idle+walk+run immediate, rest at browser idle, skipped under Save-Data). **Adding/replacing a state: run the new clip through `scripts/normalize_clips.py` FIRST (see size-lock note), drop the output in `public/assets/mascot/`, add its `POSES` line.** |
+| Clip size lock | `scripts/normalize_clips.py` | Every clip is pre-normalized to ONE canvas aspect (260×360 = 0.722) with the robot's HEAD at a uniform size (head-width invariant — pose-stable, unlike bbox height) and feet/contact on a fixed baseline. The CSS pose box is then a fixed `object-fit: contain; object-position: bottom center` box sized from `--companion-pose-aspect`, so clips can't shrink/grow on swap. Peek is excluded from head-normalization (authored partly off-edge). **Any new clip MUST go through this or it will resize the mascot.** |
 | CSS | `src/app/App.css` | `.companion` block (~line 1658), mobile overrides (~line 2578), and the mobile footer reservation (~line 663). |
 
 ### DO-NOT-BREAK invariants (each was a real bug)
@@ -269,11 +270,14 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
      the seed). Works at 96px; regenerate only if the owner wants it perfect.
      Replacing = convert mirrored (`flip=True`), overwrite
      `mascot-run-anim.webp`, done — no code change.
-2. **Total animation weight is ~7.8MB** across 15 WebPs. warmUpMascotSources
-   is TIERED now (statics + idle + walk immediately; the rest at browser idle,
-   skipped under Save-Data). If mobile perf complains, next lever: re-encode
-   the heaviest loops (idle 924KB, think 907KB, dance 881KB, doze 827KB) at
-   q70/10fps.
+2. **Total animation weight is ~9.9MB** across 18 WebPs (grew from ~8.8MB when
+   normalize_clips.py re-encoded at LANCZOS/method 5). warmUpMascotSources is
+   TIERED (idle+walk+run immediately; the rest at browser idle, skipped under
+   Save-Data), so first paint is unaffected — but this is the biggest
+   outstanding perf lever. If mobile complains: re-encode the heaviest loops
+   (idle ~1.08MB, doze ~937KB, think ~933KB, dance ~1MB) at q70/10fps INSIDE
+   normalize_clips.py (change its quality/method), so the size lock is
+   preserved.
 3. **Idle personality frequency**: 6 of 14 idle subs now play a big animated
    move (~43% of idle holds). If the owner finds Maska Bhai too hyperactive,
    rebalance by duplicating calm subs in `COMPANION_IDLE_SUBS` or splitting
@@ -349,3 +353,22 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   rebalanced 15→10 subs (7 of 10 picks now land on a distinct clip — the
   removed subs were visual no-ops; re-adding idle-look later = new sub +
   idleStretch pattern). NOT pushed.
+- **2026-07-17 (size lock + shuffle + sleep)** — (1) CLIP SIZE SHIFT fixed at
+  the ASSET level: clips varied 70–99% body-height-of-canvas, so the
+  height-sized container made the mascot shrink/grow on every swap.
+  `scripts/normalize_clips.py` re-normalizes all clips to one canvas
+  (260×360, aspect 0.722) using a HEAD-WIDTH invariant (rigid across poses;
+  bbox height isn't) back-calibrated so standing clips stay ~86% body, scale
+  clamped 0.82–0.90 to guard noisy profile-head reads, feet/contact anchored
+  to a fixed baseline (peek excluded — authored off-edge). CSS pose box is
+  now `object-fit: contain; object-position: bottom center; transform-origin:
+  bottom center`, width from `--companion-pose-aspect` (set in
+  companionConfig). Rendered-height variance dropped 29%→~12% (the residual
+  is CORRECT: seated/crouched poses are genuinely shorter). (2) SHUFFLE:
+  useCompanionIdlePool is now a fair shuffle bag — verified 500 picks =
+  exactly 50 each, 0 immediate repeats, max-gap 19 (optimal). (3) SLEEP:
+  nap threshold 8s→28s (COMPANION_NAP_AFTER_MS), 60s post-wake lockout
+  (COMPANION_WAKE_LOCKOUT_MS) so a jittery cursor can't ping-pong him,
+  wake plays a 'stretch' reaction (COMPANION_WAKE_REACTION_SUB via
+  idlePool.peekSpecific). All gates green; CDP-verified: dozed at 33s (not
+  early), woke into stretch; size band tight across 8 poses. NOT pushed.

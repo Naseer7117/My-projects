@@ -162,10 +162,15 @@ export const COMPANION_PERCH_TRAVERSE_MIN_PX = 120; // px — skip targets whose
 export const COMPANION_PERCH_FOOT_OFFSET_PX = 10;
 
 // --- Inactivity controller ---------------------------------------------------
-// No pointer/scroll/key input for this long -> the mascot dozes off in place
-// (the sleep clip) instead of wandering; any input wakes him.
-export const COMPANION_NAP_AFTER_MS = 8000;
-export const COMPANION_NAP_RECHECK_MS = 4000; // while napping, how often to re-check for activity
+// No pointer/scroll/key/touch input for this long -> the mascot dozes off in
+// place (the doze clip) instead of wandering; any input wakes him.
+export const COMPANION_NAP_AFTER_MS = 28000; // 28s of total silence before sleeping (was 8s — dozed far too eagerly)
+export const COMPANION_NAP_RECHECK_MS = 5000; // while napping, how often to re-check for activity
+// On waking, play a reaction clip (stretch — a natural "just woke up" beat),
+// then stay awake at least this long before he's allowed to nap again, so a
+// jittery cursor can't ping-pong him in and out of sleep.
+export const COMPANION_WAKE_REACTION_SUB = 'stretch';
+export const COMPANION_WAKE_LOCKOUT_MS = 60000; // 60s no-sleep window after any wake
 
 // Cursor-encounter cooldown: after one greet (wave/high-five), ignore the
 // cursor for this long — without it a hovering visitor made him wave on

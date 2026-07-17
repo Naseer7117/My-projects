@@ -33,6 +33,8 @@ import {
   COMPANION_PERCH_CHANCE,
   COMPANION_NAP_AFTER_MS,
   COMPANION_NAP_RECHECK_MS,
+  COMPANION_WAKE_REACTION_SUB,
+  COMPANION_WAKE_LOCKOUT_MS,
 } from '../../lib/constants';
 import {
   useCompanionHandoff,
@@ -578,15 +580,20 @@ export function useCompanionBehavior(): CompanionState {
   // --- inactivity tracking for the nap (doze-in-place) branch above ---
   const lastActivityRef = useRef(Date.now());
   const nappingRef = useRef(false);
+  /** Timestamp until which napping is forbidden — set on every wake, so a
+   * jittery cursor can't ping-pong him in and out of sleep. */
+  const napLockoutUntilRef = useRef(0);
   useEffect(() => {
     if (!enabled) return;
     const onActivity = () => {
       lastActivityRef.current = Date.now();
       if (nappingRef.current) {
-        // Wake up: drop the doze immediately and resume normal idling.
+        // Wake up: play the wake reaction (a stretch), lock out further naps
+        // for a minute, then resume normal idling.
         nappingRef.current = false;
+        napLockoutUntilRef.current = Date.now() + COMPANION_WAKE_LOCKOUT_MS;
         if (fsmPhaseRef.current === 'idle') {
-          setIdleSub(idlePool.pickIdleSub());
+          setIdleSub(idlePool.peekSpecific(COMPANION_WAKE_REACTION_SUB));
           scheduleIdleRef.current();
         }
       }
@@ -614,10 +621,14 @@ export function useCompanionBehavior(): CompanionState {
       const w = window.innerWidth;
       const h = window.innerHeight;
 
-      // INACTIVITY: no input for a while -> doze off IN PLACE (no wandering
-      // at all while nobody's watching); any activity wakes him (listener
-      // below). Re-checked on a short timer so the nap persists.
-      if (Date.now() - lastActivityRef.current > COMPANION_NAP_AFTER_MS) {
+      // INACTIVITY: total silence for a while (and not inside a post-wake
+      // lockout) -> doze off IN PLACE (no wandering while nobody's watching);
+      // any activity wakes him (listener above). Re-checked on a timer so the
+      // nap persists.
+      if (
+        Date.now() - lastActivityRef.current > COMPANION_NAP_AFTER_MS &&
+        Date.now() > napLockoutUntilRef.current
+      ) {
         nappingRef.current = true;
         setIdleSub('doze');
         idleTimeoutRef.current = window.setTimeout(() => {

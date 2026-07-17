@@ -1687,19 +1687,30 @@ h1, h2, h3, h4, h5, h6 {
   transform-origin: 50% 100%;
 }
 
-/* The pose media element — <img> (static PNG or animated WebP) and any
-   future transparent <video> share this class so both source kinds lay out
-   identically. Sized by HEIGHT so feet sit on the container's bottom edge
-   while per-pose aspect ratios differ; centered horizontally (wide poses
-   like celebrate overflow symmetrically — pointer-events are off, so
-   overflow can never block a click). Horizontal centering (x: -50%) and the
-   facing flip (scaleX) are applied inline by Framer Motion. */
+/* The pose media element — <img> (animated WebP) and any future transparent
+   <video> share this class so both source kinds lay out identically.
+
+   SIZE LOCK (fixes the clip-swap size shift): every clip is normalized at
+   build time (scripts/normalize_clips.py) to ONE canvas aspect
+   (--companion-pose-aspect) with the robot's HEAD at a uniform size and its
+   feet on a fixed baseline. So we can give the pose a FIXED box — height
+   100% of the container, width derived from that single aspect — and let
+   `object-fit: contain` + `object-position: bottom center` seat every clip
+   identically: same apparent scale, feet on the container's bottom edge,
+   no matter which clip is active. transform-origin bottom center keeps
+   Framer Motion's facing flip / any scale pinned to the feet.
+   (Container height, not the box, sets the mascot's on-screen size — see
+   --companion-size.) pointer-events stay off, so any symmetric overflow of a
+   wide keyframe can never block a click. */
 .companion__pose {
   position: absolute;
   bottom: 0;
   left: 50%;
   height: 100%;
-  width: auto;
+  width: calc(var(--companion-size, 96px) * var(--companion-pose-aspect, 0.722));
+  object-fit: contain;
+  object-position: bottom center;
+  transform-origin: bottom center;
   max-width: none;
   user-select: none;
 }
