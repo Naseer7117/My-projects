@@ -18,7 +18,6 @@ import {
   COMPANION_RECOVERY_MS,
   COMPANION_ARRIVAL_DISTANCE_PX,
   COMPANION_ARRIVAL_VELOCITY_PX_S,
-  COMPANION_STRIDE_LENGTH_PX,
   COMPANION_CELEBRATE_MS,
   COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION,
   COMPANION_CLIMB_MIN_VERTICAL_PX,
@@ -86,16 +85,13 @@ import { useCompanionCursorEncounter } from './useCompanionCursorEncounter';
  * manual deadzone-gated subscription — kept as a motion value, NEVER synced
  * to useState (would re-render up to 60x/sec).
  *
- * STRIDE-PHASE: a per-frame rAF loop (see the effect below) runs ONLY while
- * behavior === 'walking', reads the spring's live x/y each frame, accumulates
- * REAL distance traveled, and derives a 0..1 wrapping stride-phase from it
- * (distance / COMPANION_STRIDE_LENGTH_PX). That phase drives the pose-sprite
- * renderer's container bob (CompanionCharacter.tsx) instead of a CSS
- * keyframe running on animation-duration — the walk bounce is a function of
- * pixels covered, not milliseconds elapsed, so a spring that's temporarily
- * slowed by a retarget doesn't produce a bounce out of sync with the ground.
- * The SAME loop also does arrival detection: distance-to-target and speed
- * both under threshold for 2 consecutive frames fires arrival.
+ * WALK rAF LOOP: a per-frame loop (see the effect below) runs ONLY while
+ * behavior === 'walking', reading the spring's live x/y each frame. It does
+ * two things: (1) updates walkArcRef.progress (remaining-distance fraction)
+ * for the renderer's visual hop arc, and (2) arrival detection — distance-to-
+ * target AND speed both under threshold for 2 consecutive frames fires
+ * arrival. (The old distance-accumulated stride phase is gone — every gait's
+ * footsteps are baked into its clip now, so nothing consumed it.)
  */
 
 export type CompanionBehavior =
@@ -297,10 +293,18 @@ export function useCompanionBehavior(): CompanionState {
   const missionAnchorAimRef = useRef<'start' | 'end'>('end');
   const suppressArcRef = useRef(false);
 
+  /** True from the moment a mission's first step is consumed until the whole
+   * queue drains (including the relocate settle, when missionRef is already
+   * empty but a hidden hop is still pending). Guards one-shot pre-emptions
+   * like celebration from firing mid-mission — otherwise a click during the
+   * peek relocate's 350ms hidden-settle would cancel the relocate and cheer
+   * off-screen. */
+  const missionActiveRef = useRef(false);
   const clearMission = useCallback(() => {
     missionRef.current = [];
     missionAnchorRef.current = null;
     suppressArcRef.current = false;
+    missionActiveRef.current = false;
   }, []);
   /** True only for the synchronous moment a mission step itself calls
    * requestWalk — every OTHER caller (context beat, cursor encounter) is an
@@ -313,8 +317,10 @@ export function useCompanionBehavior(): CompanionState {
     const step = missionRef.current.shift();
     if (!step) {
       missionAnchorRef.current = null;
+      missionActiveRef.current = false; // queue drained — mission fully over
       return false;
     }
+    missionActiveRef.current = true;
     if (step.kind === 'walk') {
       missionAnchorRef.current = step.anchorEl ?? null;
       missionAnchorAimRef.current = step.anchorAim ?? 'end';
@@ -404,43 +410,26 @@ export function useCompanionBehavior(): CompanionState {
 
     let rafId = 0;
     let running = false;
-    // lastX/lastY/strideAccumPx/settledFrames are all WALK-SCOPED — they
-    // must reset the instant a NEW walk begins (fsmPhase transitions into
-    // 'walking'), not just once when this effect first mounts. This effect
-    // itself only runs once (x/y/xVelocity/yVelocity are stable MotionValue
-    // references, never changing identity), so resetting these only at
-    // startLoop()/mount time was the bug this comment replaces: on every
-    // walk AFTER the first, lastX/lastY still held the position from
-    // wherever the companion was several behaviors ago (it moves during
-    // idle/anticipation/recovery too, just not tracked here), producing one
-    // enormous spurious "step" at the start of every subsequent walk that
-    // got summed into accumulated distance and corrupted the stride phase.
-    // `wasWalking` below is what detects the fresh entry and resets state.
-    let lastX = x.get();
-    let lastY = y.get();
+    // settledFrames is WALK-SCOPED — it must reset the instant a NEW walk
+    // begins (fsmPhase -> 'walking'), not just when this effect first mounts
+    // (the effect runs once: x/y/xVelocity/yVelocity are stable MotionValue
+    // identities). `wasWalking` detects that fresh entry.
     let settledFrames = 0;
-    let strideAccumPx = 0;
     let wasWalking = false;
 
     const tick = () => {
       const isWalking = fsmPhaseRef.current === 'walking';
       if (isWalking && !wasWalking) {
-        // Fresh entry into walking (this walk's very first tracked frame) —
-        // baseline against the CURRENT position, not stale leftovers from
-        // whatever the companion was doing before.
-        lastX = x.get();
-        lastY = y.get();
-        strideAccumPx = 0;
+        // Fresh entry into walking — reset the arrival counter and measure
+        // the walk-arc baseline from THIS position.
         settledFrames = 0;
-        strideRef.current = 0;
-        rootRef.current?.style.setProperty('--stride-phase', '0.0000');
         // Walk-arc baseline: planned distance + direction are fixed per walk,
         // measured from THIS spot (the true launch point — anticipation may
         // have drifted the spring a hair, so don't trust requestWalk's math).
         const plannedWalk = activeWalkRef.current;
         if (plannedWalk) {
-          const pdx = plannedWalk.target.x - lastX;
-          const pdy = plannedWalk.target.y - lastY;
+          const pdx = plannedWalk.target.x - x.get();
+          const pdy = plannedWalk.target.y - y.get();
           walkArcRef.current.plannedDistancePx = Math.sqrt(pdx * pdx + pdy * pdy);
           walkArcRef.current.dirX = pdx >= 0 ? 1 : -1;
         } else {
@@ -454,16 +443,10 @@ export function useCompanionBehavior(): CompanionState {
       if (isWalking) {
         const curX = x.get();
         const curY = y.get();
-        const dx = curX - lastX;
-        const dy = curY - lastY;
-        const stepDist = Math.sqrt(dx * dx + dy * dy);
-        lastX = curX;
-        lastY = curY;
-
-        strideAccumPx += stepDist;
-        const phase = (strideAccumPx % COMPANION_STRIDE_LENGTH_PX) / COMPANION_STRIDE_LENGTH_PX;
-        strideRef.current = phase;
-        rootRef.current?.style.setProperty('--stride-phase', phase.toFixed(4));
+        // (The old distance-accumulating stride phase / --stride-phase CSS var
+        // is gone — every gait's footsteps are baked into its clip now, so
+        // nothing consumed the phase. strideRef stays in the return contract
+        // as a harmless hook for any future distance-synced effect.)
 
         const walk = activeWalkRef.current;
         if (walk) {
@@ -476,9 +459,11 @@ export function useCompanionBehavior(): CompanionState {
           const planned = walkArcRef.current.plannedDistancePx;
           walkArcRef.current.progress =
             planned > 0 ? Math.min(1, Math.max(0, 1 - distToTarget / planned)) : 1;
-          const speedPxPerFrame = Math.sqrt(xVelocity.get() ** 2 + yVelocity.get() ** 2);
+          // Compare SQUARED velocity to avoid a sqrt every frame (distToTarget
+          // keeps its sqrt — it's consumed for the progress fraction above).
+          const speedSq = xVelocity.get() ** 2 + yVelocity.get() ** 2;
           const withinDistance = distToTarget < COMPANION_ARRIVAL_DISTANCE_PX;
-          const withinVelocity = speedPxPerFrame < COMPANION_ARRIVAL_VELOCITY_PX_S;
+          const withinVelocity = speedSq < COMPANION_ARRIVAL_VELOCITY_PX_S ** 2;
           if (withinDistance && withinVelocity) {
             settledFrames += 1;
             if (settledFrames >= 2) {
@@ -496,8 +481,6 @@ export function useCompanionBehavior(): CompanionState {
     const startLoop = () => {
       if (running) return;
       running = true;
-      lastX = x.get();
-      lastY = y.get();
       rafId = requestAnimationFrame(tick);
     };
     const stopLoop = () => {
@@ -827,6 +810,11 @@ export function useCompanionBehavior(): CompanionState {
     if (lastCelebrationNonce.current === celebrationRequest.nonce) return;
     lastCelebrationNonce.current = celebrationRequest.nonce;
     if (handoff.talking) return;
+    // Refuse mid-mission: during the peek relocate's hidden settle the phase
+    // reads 'idle' but a hidden hop is still pending — celebrating here would
+    // cancel it and play the cheer off-screen. missionActiveRef covers that
+    // gap (missionRef is already empty by then).
+    if (missionActiveRef.current) return;
     const phase = fsmPhaseRef.current;
     if (phase !== 'idle' && phase !== 'arrived') return;
     clearPhaseTimeout();

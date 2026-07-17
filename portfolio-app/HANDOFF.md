@@ -282,7 +282,20 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
    move (~43% of idle holds). If the owner finds Maska Bhai too hyperactive,
    rebalance by duplicating calm subs in `COMPANION_IDLE_SUBS` or splitting
    the pool into weighted tiers.
-4. Standing: keep this file updated at the end of every session.
+4. **Deferred review items** (from the 2026-07-17 pre-test review — each is a
+   real confirmed finding held back because it touches load-bearing code and
+   deserves its own verified pass, NOT a batch edit): (a) two independent
+   per-walk rAF loops (FSM loop in useCompanionBehavior + bob/arc loop in
+   CompanionCharacter) — fold into one; (b) the walk rAF loop never
+   self-suspends between walks — cancelAnimationFrame when leaving 'walking'
+   for battery; (c) useCompanionCursorEncounter re-subscribes its pointermove
+   listener on every reducer state change (`state` in deps) — move phase to a
+   ref; (d) talking overloads `fsmPhase='idle'` while behavior='talking' —
+   give it a real 'parked' phase so isIdleNow() is honest; (e) `sittingCross`
+   is fully wired (union, hold, pose, breathing set) but no caller ever emits
+   it — remove or wire; (f) asset re-encode (see item 2). All are risk/perf/
+   polish, none block testing.
+5. Standing: keep this file updated at the end of every session.
 
 ## 8. Session log
 
@@ -353,6 +366,26 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   rebalanced 15→10 subs (7 of 10 picks now land on a distinct clip — the
   removed subs were visual no-ops; re-adding idle-look later = new sub +
   idleStretch pattern). NOT pushed.
+- **2026-07-17 (pre-test review)** — Multi-agent review (4 dimensions ×
+  adversarial verify, 22 confirmed of 30 raw). FIXED: (bug) celebration during
+  the peek relocate's 350ms hidden settle canceled the relocate and cheered
+  off-screen — added missionActiveRef (true from a mission's first step until
+  the queue fully drains, incl. the relocate) and the celebration handler now
+  refuses while it's set; (leak) applyCompanionSizeCssVar leaked a resize
+  listener (no cleanup, doubled under StrictMode) — now returns an unsubscribe
+  that CompanionRoamer's effect calls; (perf) tilt onMove read offsetWidth
+  (forced reflow) every global pointermove → companionSizeFor; arrival loop
+  used sqrt for velocity → squared compare; removed the dead per-frame
+  --stride-phase CSS write + the whole distance-accumulating stride block
+  (nothing consumed it — walk/arrival re-verified live still fires); (deadcode)
+  deleted COMPANION_IDLE_HOLD_MIN/MAX_MS, COMPANION_STRIDE_BOB_PX/ROCK_DEG,
+  COMPANION_STRIDE_LENGTH_PX; fixed stale "static PNG"/"stride bob" comments in
+  App.css, constants.ts, CompanionCharacter.tsx. DEFERRED (each needs its own
+  verified pass — see work queue): merge the two per-walk rAF loops; suspend
+  the walk rAF loop when idle (battery); cursor-encounter listener re-subscribes
+  on every reducer state change; talking overloads fsmPhase='idle'; sittingCross
+  fully wired but never requested; asset re-encode (~9.9MB). All gates green.
+  NOT pushed.
 - **2026-07-17 (size lock + shuffle + sleep)** — (1) CLIP SIZE SHIFT fixed at
   the ASSET level: clips varied 70–99% body-height-of-canvas, so the
   height-sized container made the mascot shrink/grow on every swap.

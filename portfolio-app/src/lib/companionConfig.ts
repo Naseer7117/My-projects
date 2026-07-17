@@ -47,9 +47,12 @@ export function minViewportForGutterRoaming(): number {
 export const COMPANION_POSE_ASPECT = 260 / 360; // 0.722
 
 /** Sets --companion-size and --companion-pose-aspect on :root from the
- * constants above, once, so CSS and JS can never disagree. Call at app mount. */
-export function applyCompanionSizeCssVar(): void {
-  if (typeof document === 'undefined') return;
+ * constants above so CSS and JS can never disagree, and keeps --companion-size
+ * in sync on resize. Returns an unsubscribe to remove the resize listener —
+ * the caller MUST call it on cleanup (otherwise the listener leaks, doubled
+ * under StrictMode). Call at app mount. */
+export function applyCompanionSizeCssVar(): () => void {
+  if (typeof document === 'undefined') return () => undefined;
   const root = document.documentElement;
   root.style.setProperty('--companion-pose-aspect', `${COMPANION_POSE_ASPECT}`);
   const apply = () => {
@@ -57,4 +60,5 @@ export function applyCompanionSizeCssVar(): void {
   };
   apply();
   window.addEventListener('resize', apply);
+  return () => window.removeEventListener('resize', apply);
 }

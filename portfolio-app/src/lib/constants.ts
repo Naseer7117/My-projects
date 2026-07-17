@@ -123,11 +123,6 @@ export const COMPANION_ANTICIPATION_MS = 220; // crouch/wind-up hold before the 
 export const COMPANION_RECOVERY_MS = 260; // settle hold after arrival, before the next state
 export const COMPANION_ARRIVAL_DISTANCE_PX = 6; // px — spring position within this of target counts as "there"
 export const COMPANION_ARRIVAL_VELOCITY_PX_S = 30; // px/s — spring speed must also be under this to count as settled
-export const COMPANION_STRIDE_LENGTH_PX = 46; // px of travel per full stride cycle (0->1 phase wrap).
-// NOTE: with every gait now a baked video clip, the stride phase no longer
-// drives a procedural bob (CompanionCharacter stopped consuming it) — the FSM
-// still measures it, and it remains the hook if a distance-synced effect ever
-// returns (e.g. footstep dust).
 
 // Steep walks play the climb clip instead of walk/run: when the planned
 // vertical travel is big AND dominates the horizontal, wheels-on-a-wall
@@ -177,23 +172,16 @@ export const COMPANION_WAKE_LOCKOUT_MS = 60000; // 60s no-sleep window after any
 // loop, which read as a glitch, not charm.
 export const COMPANION_GREET_COOLDOWN_MS = 45000;
 
-// --- Idle-pool walk trigger (see useCompanionBehavior.ts default scheduler) --
-export const COMPANION_IDLE_HOLD_MIN_MS = 3500; // shortest idle hold before the next walk-somewhere
-export const COMPANION_IDLE_HOLD_MAX_MS = 7000; // longest idle hold before the next walk-somewhere
-
 // --- Mascot renderer (see CompanionCharacter.tsx / AnimatedMascotPlayer.tsx) --
-// The mascot is one media element (animated WebP, static PNG, or — schema-
-// ready — transparent <video>) resolved per behavior from a static source
-// map; all life/physics is conveyed at the container level (breathing +
-// idle drift, squash, stride bob, walk arc, tilt).
+// The mascot is one media element (animated WebP, or — schema-ready —
+// transparent <video>) resolved per behavior; all life/physics is conveyed at
+// the container level (breathing + idle drift, squash, walk arc, tilt).
 export const COMPANION_POSE_CROSSFADE_S = 0.2; // s — opacity crossfade between pose sources (200ms per the motion-engine spec; was 150ms)
 export const COMPANION_BREATHE_PERIOD_S = 3.5; // s — idle breathing loop duration
 export const COMPANION_BREATHE_LIFT_PX = 8; // px — idle breathing rise (y: [0, -8, 0])
 export const COMPANION_DRIFT_PERIOD_S = 7; // s — stationary-idle horizontal drift loop (weightless float)
 export const COMPANION_DRIFT_PX = 2; // px — idle drift amplitude (x: [0, 2, 0, -2, 0]) — tiny on purpose:
 //                                      it must never visually contradict the safe-zone standing point
-export const COMPANION_STRIDE_BOB_PX = 4; // px — walk bounce amplitude, driven by real distance (stride phase)
-export const COMPANION_STRIDE_ROCK_DEG = 2; // deg — walk rocking amplitude, one sway per stride cycle
 // Walk arc: a purely VISUAL parabolic hop layered over the whole crossing
 // (offset = -A·sin(π·progress) on the bob wrapper) so long walks read as
 // bounding arcs, not flat slides. Never touches the x/y position springs.

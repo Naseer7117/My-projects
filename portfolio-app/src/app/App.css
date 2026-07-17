@@ -1636,18 +1636,17 @@ h1, h2, h3, h4, h5, h6 {
 
    ANIMATED-SOURCE RENDERER (CompanionCharacter.tsx over
    AnimatedMascotPlayer.tsx): the mascot is one media element per behavior —
-   an animated WebP where one is checked in (idle's LED-blink loop today),
-   a pre-rendered pose PNG otherwise, and (schema-ready) a transparent
-   <video> for future .webm renders — resolved from a static source map and
-   crossfaded via AnimatePresence. All life/physics happens at the CONTAINER
-   level, driven by Framer Motion inline styles rather than CSS keyframes:
+   a video-derived animated WebP (or, schema-ready, a transparent <video> for
+   future .webm renders) resolved from a static source map and crossfaded via
+   AnimatePresence. All life/physics happens at the CONTAINER level, driven by
+   Framer Motion inline styles rather than CSS keyframes:
      - position springs on .companion (x/y from useCompanionBehavior),
      - pseudo-3D cursor tilt on .companion__stage (rotateX/rotateY springs),
      - squash-and-stretch (bouncy 200/10 springs) + the celebration bounce
        on .companion__squash (behavior variants),
-     - the distance-synced stride bob PLUS the whole-crossing parabolic hop
-       arc on .companion__bob (written per frame from the FSM's
-       real-pixels-traveled stride phase + walk progress),
+     - the whole-crossing parabolic hop arc on .companion__bob (written per
+       frame from the FSM's walk progress; the old procedural stride bob is
+       gone — every gait's footsteps are baked into its clip),
      - stationary breathing / idle drift on .companion__float.
    These rules therefore only LAY OUT the wrapper chain.
 
@@ -1670,8 +1669,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Wrapper chain — each layer owns exactly ONE motion concern (tilt, then
-   squash, then stride bob + hop arc, then stationary float) so their
-   transforms can never fight each other. */
+   squash, then the hop arc, then stationary float) so their transforms can
+   never fight each other. */
 .companion__stage,
 .companion__squash,
 .companion__bob,

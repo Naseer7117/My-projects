@@ -3,6 +3,7 @@ import { m, useMotionValue, useSpring, MotionValue, Variants } from 'framer-moti
 import { CompanionBehavior, CompanionGait, WalkArc } from 'hooks/interactions/useCompanionBehavior';
 import AnimatedMascotPlayer, { PoseKey, POSES, warmUpMascotSources } from 'components/effects/AnimatedMascotPlayer';
 import { hasFinePointer, prefersReducedMotion } from 'lib/env';
+import { companionSizeFor } from 'lib/companionConfig';
 import {
   COMPANION_BREATHE_PERIOD_S,
   COMPANION_BREATHE_LIFT_PX,
@@ -23,9 +24,10 @@ import {
  * App.tsx.
  *
  * CONTAINER-PHYSICS RENDERER over an ANIMATED-SOURCE PLAYER: the asset layer
- * (which file shows for a behavior — animated WebP when checked in, static
- * PNG fallback, future transparent <video>; facing normalization; ~150ms
- * crossfades) lives in AnimatedMascotPlayer.tsx. This component maps the
+ * (which file shows for a behavior — a video-derived animated WebP per pose,
+ * idle-loop fallback on load failure, future transparent <video>; facing
+ * normalization; 200ms crossfades) lives in AnimatedMascotPlayer.tsx. This
+ * component maps the
  * behavior FSM's outputs onto that player plus a wrapper chain where each
  * layer owns exactly ONE motion concern:
  *
@@ -39,12 +41,10 @@ import {
  *                          celebration bounce. Bouncy 200/10 springs,
  *                          feet-anchored origin.
  *         .companion__bob div — walking-only, written per frame: the
- *                          distance-synced stride bounce (foot-plants every
- *                          COMPANION_STRIDE_LENGTH_PX of REAL travel) PLUS
- *                          the whole-crossing parabolic hop arc
- *                          (-apex·sin(π·walkProgress), lean into travel) —
- *                          both purely visual offsets; the position springs
- *                          alone own ground truth + arrival detection
+ *                          whole-crossing parabolic hop arc
+ *                          (-apex·sin(π·walkProgress), lean into travel) — a
+ *                          purely visual offset; the position springs alone
+ *                          own ground truth + arrival detection
  *           .companion__float m.div — stationary life: breathing y-loop, and
  *                          in true idle an extra ±2px x drift (~7s) so the
  *                          mascot floats rather than pins
@@ -56,8 +56,8 @@ import {
 
 /** Behaviors whose pose gets the stationary breathing loop (true idle gets
  * the floaty x-drift variant on top — see floatStateFor). Walking uses the
- * stride bob + arc instead; anticipation/recovery hold still for the squash
- * tell; celebrating has its own bounce. */
+ * hop arc instead; anticipation/recovery hold still for the squash tell;
+ * celebrating has its own bounce. */
 const BREATHING_BEHAVIORS: ReadonlySet<CompanionBehavior> = new Set<CompanionBehavior>([
   'idle',
   'sitting',
@@ -129,7 +129,7 @@ function poseForBehavior(
 
 // Squash-and-stretch + celebration bounce, applied to the image wrapper via
 // variants (feet-anchored transform-origin in CSS so it pushes up from the
-// ground). Walking keeps 'rest' — the stride bob wrapper owns walk motion.
+// ground). Walking keeps 'rest' — the hop-arc wrapper owns walk motion.
 type SquashState = 'rest' | 'crouch' | 'settle' | 'cheer';
 
 // Deliberately underdamped (ζ ≈ 0.35): every squash release overshoots and
@@ -284,7 +284,10 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
   React.useEffect(() => {
     if (typeof window === 'undefined' || !hasFinePointer() || prefersReducedMotion()) return;
     const onMove = (e: PointerEvent) => {
-      const size = rootRef.current?.offsetWidth || 72;
+      // companionSizeFor (not offsetWidth) — reading offsetWidth here forces a
+      // synchronous layout on EVERY global pointermove, before the distance
+      // gate even runs.
+      const size = companionSizeFor(window.innerWidth);
       const dx = e.clientX - (x.get() + size / 2);
       const dy = e.clientY - (y.get() + size / 2);
       const dist = Math.sqrt(dx * dx + dy * dy);

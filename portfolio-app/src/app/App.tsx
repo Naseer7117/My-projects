@@ -62,7 +62,8 @@ type ScanRun = { id: number; variant: IntroVariant; running: boolean };
 const CompanionRoamer: React.FC = () => {
   const { enabled, behavior, gait, idleSub, x, y, facing, strideRef, walkArcRef, rootRef } = useCompanionBehavior();
   React.useEffect(() => {
-    if (enabled) applyCompanionSizeCssVar();
+    if (!enabled) return;
+    return applyCompanionSizeCssVar(); // returns the resize-listener unsubscribe
   }, [enabled]);
 
   if (!enabled) return null;
