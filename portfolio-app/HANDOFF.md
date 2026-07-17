@@ -76,7 +76,7 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 | Cursor encounter | `src/hooks/interactions/useCompanionCursorEncounter.ts` | notice (<180px, 300ms) → walk over → wave (or high-five if <90px) → dormant. Fine-pointer devices only. |
 | Cross-feature channels | `src/hooks/interactions/CompanionContext.tsx` | talking handoff (HomePage narration), context-beat requests, celebration requests (nonce-gated). |
 | Container physics | `src/components/effects/CompanionCharacter.tsx` | Wrapper chain `.companion > __stage (cursor tilt) > __squash (stiffness 200/damping 10, deliberately underdamped) > __bob (stride bob −4px·\|sin(π·phase)\| + rock 2° + hop arc) > __float (breathe/drift) > player`. Feet-anchored `transform-origin: 50% 100%`. |
-| Asset layer | `src/components/effects/AnimatedMascotPlayer.tsx` | `POSES` table (12 static PNGs with `nativeFacing`/`facingMode`), `ANIMATED_SOURCES` override map (animated WebP wins over PNG), 150ms AnimatePresence crossfade, preloading. **Adding a new animated state = drop the .webp in `public/assets/mascot/` + one line in `ANIMATED_SOURCES`.** |
+| Asset layer | `src/components/effects/AnimatedMascotPlayer.tsx` | `POSES` — a single webp-only table (src, `nativeFacing`, `facingMode`, kind 'img'\|'video'); 150ms AnimatePresence crossfade; two-tier preloading (idle+walk+run immediate, rest at browser idle, skipped under Save-Data). **Adding/replacing a state = drop the .webp in `public/assets/mascot/` + its `POSES` line.** |
 | CSS | `src/app/App.css` | `.companion` block (~line 1658), mobile overrides (~line 2578), and the mobile footer reservation (~line 663). |
 
 ### DO-NOT-BREAK invariants (each was a real bug)
@@ -104,24 +104,31 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
    (fallbacks in `.companion`, mobile `--companion-size`, footer calc). Current
    96px is the ceiling before 1536-wide laptops lose gutter roaming
    (threshold formula: `1280 + (16·2 + size)·2`).
-8. **Wave pose never mirrors** (baked "Hi!" bubble); frontal poses are
-   `facingMode: 'fixed'`; peeks are edge-driven. Respect the `POSES` table.
+8. **Respect the `POSES` table's facing rules**: frontal/direction-agnostic
+   poses (incl. climb) are `facingMode: 'fixed'`; peeks are edge-driven and
+   authored right-edge-native; locomotion clips are authored facing RIGHT
+   (mirror at conversion if a clip faces left — never flip the table entry).
 9. **Reduced motion**: companion is `display: none` under
    `prefers-reduced-motion` and the FSM's `enabled` is false — keep both.
 
 ## 4. Animation clip pipeline (the active workstream)
 
-**Goal**: replace static pose PNGs with fluid video-derived animations, state by
-state. **As of 2026-07-17 this is nearly complete** — 15 animated WebPs are
-installed and wired: idle, idleStretch, idleDoze, idleDance, idleExercise,
-idleThink, idleLaugh (the five new ones are Tier-B idle subs routed like
-idleStretch), walk (mirrored at conversion), sit, pointing (talking), peek
-(chroma-keyed, shared by peek+peekAlt), wave, highfive, celebrate, jump
-(asset-only, still no FSM trigger). Still STATIC (rejected clips, regenerate
-seeded): `run` (clip was off-model — not Maska Bhai), `climb` (didn't read as
-climbing). Known cosmetic trade-off: the peek animation's NS badge mirrors at
-the RIGHT screen edge (the static art has the same at the left edge) —
-invisible at 96px.
+**COMPLETE as of 2026-07-17: the mascot is 100% video-derived.** The static
+PNG pose-swapping layer is fully retired — the 12 PNGs are deleted, `POSES`
+in AnimatedMascotPlayer.tsx is a single webp-only table (no ANIMATED_SOURCES
+override map, no fallbacks), and every pose has a clip: idle + 7 idle
+personality subs (stretch/doze/dance/exercise/think/laugh/hop→jump), walk,
+run, climb, sit + sitDown, pointing (talking), peek (shared by both edges),
+wave, highfive, celebrate. Owner explicitly overrode the earlier rejections
+("i want those"): run is in despite being slightly off-model (offer seeded
+regeneration as polish), climb got a NEW `climb` gait (steep vertically-
+dominated walks — see COMPANION_CLIMB_* constants), sit-down became the
+sitting entry transition (sitDown one-shot → sit loop, swapped at
+COMPANION_SIT_DOWN_MS=3400ms in CompanionCharacter). The procedural stride
+bob/rock is REMOVED (baked gaits own their bounce; only the hop arc remains,
+and climb gets no offsets at all). Known cosmetic trade-off: locomotion/peek
+clips show a mirrored NS badge in one direction/edge — inherent to
+single-orientation art, invisible at 96px.
 
 **How a clip becomes a site animation:**
 
@@ -250,16 +257,14 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
 
 ## 7. Work queue (next session starts here)
 
-1. **Regenerations needed from owner** (seed with the SEED image!):
-   - `run` — the 2026-07-17 clip was off-model (different robot; rejected).
-     Must be an IN-PLACE run cycle. When it lands: `convert_clips.py`, mirror
-     if it faces left (`read_frames(..., flip=True)` pattern in
-     `scripts/out`-era rework script, or flip in the converter), install as
-     `mascot-run-anim.webp`, add the `run:` line in ANIMATED_SOURCES — the
-     double-bob gate then covers it automatically.
-   - `climb` — clip didn't read as climbing (no wall) + bad loop seam;
-     low priority (climb has no FSM trigger anyway).
-   - `idle-look` — still open from before (spotlight background + drift).
+1. **Optional regenerations** (seed with the SEED image!):
+   - `idle-look` — still open (old clip: spotlight background + identity
+     drift). Wiring is ready: `lookAroundLeft`/`lookAroundRight` subs exist;
+     follow the idleStretch pattern.
+   - `run` — SHIPPED but the clip is slightly off-model (flatter visor than
+     the seed). Works at 96px; regenerate only if the owner wants it perfect.
+     Replacing = convert mirrored (`flip=True`), overwrite
+     `mascot-run-anim.webp`, done — no code change.
 2. **Total animation weight is ~7.8MB** across 15 WebPs. warmUpMascotSources
    is TIERED now (statics + idle + walk immediately; the rest at browser idle,
    skipped under Save-Data). If mobile perf complains, next lever: re-encode
@@ -293,3 +298,13 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   ACKNOWLEDGE_MS 1200→2100, CELEBRATE_MS 1400→2600, idle subs 9→14. All gates
   green; CDP-verified live: walk/sit/peek/talk/wave/think/doze/stretch/laugh
   all seen animating on the dev server. NOT pushed.
+- **2026-07-17 (final)** — FULLY ANIMATED, PNG layer retired (owner: "remove
+  the previous reference of the cutted png images"). Reinstated the three
+  rejected clips on owner override: run (mirrored; slightly off-model,
+  regeneration optional), climb (new steep-walk `climb` gait: |dy|>220 AND
+  |dy|>1.5|dx|), sit-down (sitting = sitDown transition one-shot → sit loop
+  at 3400ms). jump wired as the 'hop' idle sub (subs now 15). POSES is a
+  single webp-only table; 12 static PNGs deleted; procedural stride bob/rock
+  removed (baked gaits); hop arc kept except for climb. 18 files / 8.8MB in
+  assets/mascot. All gates green; CDP-verified: sitDown→sit swap, run, climb,
+  hop all seen live; zero .png requests. NOT pushed.

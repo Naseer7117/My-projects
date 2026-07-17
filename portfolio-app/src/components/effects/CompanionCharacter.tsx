@@ -1,15 +1,14 @@
 import React from 'react';
 import { m, useMotionValue, useSpring, MotionValue, Variants } from 'framer-motion';
 import { CompanionBehavior, CompanionGait, WalkArc } from 'hooks/interactions/useCompanionBehavior';
-import AnimatedMascotPlayer, { PoseKey, POSES, warmUpMascotSources, isAnimatedPose } from 'components/effects/AnimatedMascotPlayer';
+import AnimatedMascotPlayer, { PoseKey, POSES, warmUpMascotSources } from 'components/effects/AnimatedMascotPlayer';
 import { hasFinePointer, prefersReducedMotion } from 'lib/env';
 import {
   COMPANION_BREATHE_PERIOD_S,
   COMPANION_BREATHE_LIFT_PX,
   COMPANION_DRIFT_PERIOD_S,
   COMPANION_DRIFT_PX,
-  COMPANION_STRIDE_BOB_PX,
-  COMPANION_STRIDE_ROCK_DEG,
+  COMPANION_SIT_DOWN_MS,
   COMPANION_ARC_HEIGHT_PER_PX,
   COMPANION_ARC_MIN_PX,
   COMPANION_ARC_MAX_PX,
@@ -73,12 +72,16 @@ function poseForBehavior(
   behavior: CompanionBehavior,
   gait: CompanionGait,
   peekSide: 'left' | 'right',
-  idleSub: string | null
+  idleSub: string | null,
+  sitSettled: boolean
 ): PoseKey {
   switch (behavior) {
     case 'walking':
-      return gait === 'run' ? 'run' : 'walk';
+      return gait === 'run' ? 'run' : gait === 'climb' ? 'climb' : 'walk';
     case 'sitting':
+      // Two-pose composition: the stand-to-seated transition one-shot first,
+      // then (COMPANION_SIT_DOWN_MS later) the seated-idle loop.
+      return sitSettled ? 'sit' : 'sitDown';
     case 'sittingCross':
       return 'sit';
     case 'peeking':
@@ -104,6 +107,7 @@ function poseForBehavior(
         exercise: 'idleExercise',
         think: 'idleThink',
         laugh: 'idleLaugh',
+        hop: 'jump',
       };
       return (idleSub && idleSubPose[idleSub]) || 'idle';
     }
@@ -209,17 +213,18 @@ type CompanionCharacterProps = {
   behavior: CompanionBehavior;
   /** 'run' swaps the walk pose for the run pose on long crossings. */
   gait: CompanionGait;
-  /** Tier-B idle sub-pick from the FSM — 'stretch' routes to the one-shot
-   * stretch animation while idling; every other value keeps the base idle. */
+  /** Tier-B idle sub-pick from the FSM — subs with their own clip (stretch/
+   * doze/dance/exercise/think/laugh/hop) route to that animation while
+   * idling; every other value keeps the base idle loop. */
   idleSub: string | null;
   x: MotionValue<number>;
   y: MotionValue<number>;
   /** -1 = facing left, 1 = facing right (FSM velocity-derived). */
   facing: MotionValue<number>;
   /** 0..1 wrapping stride phase, written every frame by useCompanionBehavior's
-   * distance-tracking loop WHILE behavior === 'walking'. Read here (not via
-   * React state — this changes up to 60x/sec) to drive the container's
-   * foot-plant-synced bob, keyed to real pixels traveled rather than time. */
+   * distance-tracking loop WHILE behavior === 'walking'. No longer consumed
+   * here — every gait's footsteps are baked into its clip now — but kept in
+   * the contract as the hook for any future distance-synced effect. */
   strideRef: React.RefObject<number>;
   /** Live walk telemetry (progress 0..1 / planned px / direction) from the
    * same FSM loop — drives the purely visual hop arc. */
@@ -236,13 +241,26 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
   x,
   y,
   facing,
-  strideRef,
   walkArcRef,
   rootRef,
 }) => {
   React.useEffect(() => {
     warmUpMascotSources();
   }, []);
+
+  // --- sitting's two-pose timing: play the stand-to-seated transition
+  // one-shot, then settle into the seated-idle loop. Purely visual — the FSM
+  // knows one 'sitting' behavior. StrictMode-safe: re-running just replays
+  // the transition from its start, which is also the correct visual. ---
+  const [sitSettled, setSitSettled] = React.useState(false);
+  React.useEffect(() => {
+    if (behavior !== 'sitting') {
+      setSitSettled(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSitSettled(true), COMPANION_SIT_DOWN_MS);
+    return () => window.clearTimeout(t);
+  }, [behavior]);
 
   // --- pseudo-3D cursor tilt: pointer within COMPANION_TILT_RADIUS_PX maps
   // its offset to rotateY/rotateX (springs for smoothness) so the mascot
@@ -280,41 +298,34 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
     };
   }, [x, y, rootRef, tiltXTarget, tiltYTarget]);
 
-  // --- walk motion, written per frame while walking (two layers, one node):
-  //
-  //   stride bob — repurposes the FSM's distance-driven stride phase: the
-  //   container dips -A·|sin(π·phase)| (two foot-plants per stride cycle)
-  //   and rocks ±2°·sin(2π·phase). Phase advances with REAL distance, so the
-  //   bounce decelerates exactly as the position spring settles.
+  // --- walk motion, written per frame while walking:
   //
   //   hop arc — one gentle parabola across the WHOLE crossing:
   //   arcY = -apex·sin(π·progress), progress = fraction of planned distance
   //   covered (FSM walkArcRef), apex = planned·COMPANION_ARC_HEIGHT_PER_PX
   //   clamped to [ARC_MIN, ARC_MAX]; plus a ±3° lean INTO the travel
   //   direction scaled by the same sin — strongest mid-arc, zero at both
-  //   ends. Layered with the bob, long walks read as bounding arcs.
+  //   ends.
   //
-  //   Both are PURELY VISUAL offsets on this wrapper — the x/y position
-  //   springs alone own ground-truth position and arrival detection.
+  //   The old procedural stride bob/rock is GONE: every gait is a baked
+  //   video cycle now, and layering a synthetic dip over baked footsteps
+  //   visibly doubled the bounce. The arc stays — it shapes the whole
+  //   crossing, a path-level concern no in-place cycle can bake. The climb
+  //   gait gets NO offsets at all: a vertical clamber shouldn't hop or lean.
+  //
+  //   A PURELY VISUAL offset on this wrapper — the x/y position springs
+  //   alone own ground-truth position and arrival detection.
   const bobRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const node = bobRef.current;
     if (!node) return;
-    if (behavior !== 'walking') {
+    if (behavior !== 'walking' || gait === 'climb') {
       node.style.transform = '';
       return;
     }
-    // When the active gait's pose is a video-derived clip, its foot-plant
-    // bounce is BAKED into the frames — layering the procedural dip/rock on
-    // top doubles the bounce visibly. The hop arc + lean stay on: they shape
-    // the whole crossing (a path-level concern no in-place cycle can bake).
-    const gaitIsBaked = isAnimatedPose(gait === 'run' ? 'run' : 'walk');
     let rafId = 0;
     let running = false;
     const tick = () => {
-      const phase = strideRef.current;
-      const dip = gaitIsBaked ? 0 : -COMPANION_STRIDE_BOB_PX * Math.abs(Math.sin(Math.PI * phase));
-      const rock = gaitIsBaked ? 0 : COMPANION_STRIDE_ROCK_DEG * Math.sin(2 * Math.PI * phase);
       const { progress, plannedDistancePx, dirX } = walkArcRef.current;
       const apex = Math.min(
         COMPANION_ARC_MAX_PX,
@@ -323,7 +334,7 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
       const lift = Math.sin(Math.PI * progress); // 0 at launch/arrival, 1 mid-crossing
       const arcY = -apex * lift;
       const lean = COMPANION_ARC_LEAN_DEG * dirX * lift;
-      node.style.transform = `translateY(${(dip + arcY).toFixed(2)}px) rotate(${(rock + lean).toFixed(2)}deg)`;
+      node.style.transform = `translateY(${arcY.toFixed(2)}px) rotate(${lean.toFixed(2)}deg)`;
       if (running) rafId = requestAnimationFrame(tick);
     };
     const start = () => {
@@ -343,7 +354,7 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
       stop();
       node.style.transform = '';
     };
-  }, [behavior, gait, strideRef, walkArcRef]);
+  }, [behavior, gait, walkArcRef]);
 
   // Which edge a peek plays from — decides both the asset (peek vs peekAlt)
   // and its flip. Position is settled by the time 'peeking' starts, so a
@@ -351,7 +362,7 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
   const peekSide: 'left' | 'right' =
     behavior === 'peeking' && typeof window !== 'undefined' && x.get() > window.innerWidth / 2 ? 'right' : 'left';
 
-  const poseKey = poseForBehavior(behavior, gait, peekSide, idleSub);
+  const poseKey = poseForBehavior(behavior, gait, peekSide, idleSub, sitSettled);
   const pose = POSES[poseKey];
   const staticScaleX = pose.facingMode === 'edge' ? (peekSide === 'left' ? -1 : 1) : 1;
 

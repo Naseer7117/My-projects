@@ -5,30 +5,29 @@ import { COMPANION_POSE_CROSSFADE_S } from 'lib/constants';
 /*
  * AnimatedMascotPlayer — the mascot's ASSET layer.
  *
- * Given a pose key, resolves the best available source from a STATIC map
- * (no runtime HEAD probes — availability is decided in code, at build time)
- * with graceful degradation:
+ * Every pose is a video-derived animated WebP (mascot-<state>-anim.webp) —
+ * the static-PNG pose-swapping era is fully retired (owner's call, 2026-07-17:
+ * "only the new implementation clips and movements should run"). Sources
+ * resolve from the STATIC table below (no runtime HEAD probes — availability
+ * is decided in code, at build time).
  *
- *   animated WebP (mascot-<state>-anim.webp)  — if one is checked in
- *     -> static PNG (mascot-<state>.png)      — always exists, the fallback
+ * Two source KINDS render:
  *
- * and renders it as one crossfading media element. Two source KINDS exist:
- *
- *   'img'    <img>  — static PNGs and animated WebPs alike (an animated WebP
- *                     loops natively as a plain <img> src, alpha included)
+ *   'img'    <img>  — animated WebP loops natively as a plain <img> src,
+ *                     alpha included ('loop=1' one-shots freeze on their
+ *                     final frame)
  *   'video'  <video autoPlay loop muted playsInline> — for future
  *                     transparent .webm renders. No .webm is checked in yet;
- *                     the schema + render path exist NOW so upgrading a state
- *                     later is one ANIMATED_SOURCES line, zero code.
+ *                     the render path exists NOW so upgrading a state later
+ *                     means only giving its POSES entry `kind: 'video'`.
  *
  * Crossfade: pose swaps mount a new keyed element through AnimatePresence
  * with a ~150ms linear opacity fade (COMPANION_POSE_CROSSFADE_S) — img and
- * video sources fade through the exact same variant props, so a future
- * video state swaps indistinguishably from a PNG one.
+ * video sources fade through the exact same variant props.
  *
  * Facing lives HERE (per media element) because it's an asset property:
  * final on-screen scaleX = desired facing × the art's own native facing.
- * Container physics (position springs, squash, bob/arc, tilt, breathing)
+ * Container physics (position springs, squash, walk arc, tilt, breathing)
  * stay in CompanionCharacter.tsx — this component never moves the mascot.
  */
 
@@ -48,6 +47,7 @@ export type PoseKey =
   | 'peek'
   | 'peekAlt'
   | 'sit'
+  | 'sitDown'
   | 'wave'
   | 'highfive'
   | 'celebrate';
@@ -55,145 +55,102 @@ export type PoseKey =
 /** How a pose's on-screen direction is decided:
  *  - 'locomotion': follow the FSM's velocity-derived facing (walk/run/greet)
  *  - 'edge':       decided by which screen edge is being peeked from
- *  - 'fixed':      never mirrored (frontal art, or art with baked-in text
- *                  like the wave's "Hi!" bubble, which would read backwards) */
+ *  - 'fixed':      never mirrored (frontal art, or direction-agnostic motion
+ *                  like the vertical climb) */
 export type FacingMode = 'locomotion' | 'edge' | 'fixed';
 
+export type MascotSourceKind = 'img' | 'video';
+
 export type PoseDef = {
-  /** The always-available static PNG for this pose. */
+  /** The pose's animated source (animated WebP today; .webm-ready). */
   src: string;
+  kind: MascotSourceKind;
   /** Direction the ART faces as drawn: 1 = right, -1 = left. Final on-screen
-   * scaleX = desiredFacing × nativeFacing, so a left-drawn pose shown while
-   * moving left needs NO flip, and so on. Animated variants are rendered in
-   * the SAME orientation as their static pose, so one table serves both. */
+   * scaleX = desiredFacing × nativeFacing for locomotion poses, so a
+   * left-drawn pose shown while moving left needs NO flip. Ignored for
+   * 'fixed' poses; 'edge' poses use the peek-side flip computed upstream. */
   nativeFacing: 1 | -1;
   facingMode: FacingMode;
 };
 
 const MASCOT_BASE = `${process.env.PUBLIC_URL || ''}/assets/mascot`;
 
-/** NATIVE_FACING table — read off the actual renders (see each note). */
-export const POSES: Record<PoseKey, PoseDef> = {
-  // Frontal, presenting finger raised — no inherent direction.
-  idle: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  // Video-derived idle variants (stretch/doze/dance/exercise/think/laugh) —
-  // each is reached only while its Tier-B idle sub is active. Static fallback
-  // for all of them is the plain idle PNG: without the animated file the pose
-  // is indistinguishable from idle, which is exactly the right degradation.
-  idleStretch: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  idleDoze: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  idleDance: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  idleExercise: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  idleThink: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  idleLaugh: { src: `${MASCOT_BASE}/mascot-idle.png`, nativeFacing: 1, facingMode: 'fixed' },
-  // 3/4 stride: head turned to the viewer's RIGHT, cape trailing left.
-  walk: { src: `${MASCOT_BASE}/mascot-walk.png`, nativeFacing: 1, facingMode: 'locomotion' },
-  // Superhero dash pointing RIGHT (fist forward right, legs trailing left).
-  run: { src: `${MASCOT_BASE}/mascot-run.png`, nativeFacing: 1, facingMode: 'locomotion' },
-  // Frontal float — no inherent direction. (No FSM trigger yet; preloaded only.)
-  jump: { src: `${MASCOT_BASE}/mascot-jump.png`, nativeFacing: 1, facingMode: 'fixed' },
-  // Profile reaching up toward a wall on its RIGHT. (No FSM trigger yet.)
-  climb: { src: `${MASCOT_BASE}/mascot-climb.png`, nativeFacing: 1, facingMode: 'locomotion' },
-  // Frontal presenting gesture (talking) — mirroring adds nothing.
-  pointing: { src: `${MASCOT_BASE}/mascot-pointing.png`, nativeFacing: 1, facingMode: 'fixed' },
-  // Leans out to the LEFT of a wall edge drawn on its right — native for a
-  // RIGHT-edge peek; flipped when peeking from the left edge.
-  peek: { src: `${MASCOT_BASE}/mascot-peek.png`, nativeFacing: -1, facingMode: 'edge' },
-  // Same orientation as peek (leans left, edge on the right) — used unflipped
-  // at the right edge for variety.
-  peekAlt: { src: `${MASCOT_BASE}/mascot-peek-alt.png`, nativeFacing: -1, facingMode: 'edge' },
-  // Frontal thinking/settled pose — no inherent direction.
-  sit: { src: `${MASCOT_BASE}/mascot-sit.png`, nativeFacing: 1, facingMode: 'fixed' },
-  // Waves with a baked-in "Hi!" speech bubble — NEVER mirrored (the text
-  // would read backwards), so facingMode is fixed despite the left lean.
-  wave: { src: `${MASCOT_BASE}/mascot-wave.png`, nativeFacing: -1, facingMode: 'fixed' },
-  // Open palm raised on the art's LEFT — follows facing so the palm ends up
-  // toward the cursor it walked to.
-  highfive: { src: `${MASCOT_BASE}/mascot-highfive.png`, nativeFacing: -1, facingMode: 'locomotion' },
-  // Mid-air cheer with a sparkle swirl — frontal, no inherent direction.
-  celebrate: { src: `${MASCOT_BASE}/mascot-celebrate.png`, nativeFacing: 1, facingMode: 'fixed' },
-};
+const pose = (file: string, nativeFacing: 1 | -1, facingMode: FacingMode): PoseDef => ({
+  src: `${MASCOT_BASE}/${file}`,
+  kind: 'img',
+  nativeFacing,
+  facingMode,
+});
 
-export type MascotSourceKind = 'img' | 'video';
+/** The full pose table — every entry a video-derived clip. Loop clips repeat
+ * natively; one-shots (noted) are encoded loop=1 and freeze on their final
+ * frame until the FSM hold ends (holds are sized to outlive them — see
+ * COMPANION_ACKNOWLEDGE_MS / COMPANION_CELEBRATE_MS / COMPANION_SIT_DOWN_MS). */
+export const POSES: Record<PoseKey, PoseDef> = {
+  // 6.5s breathing + blink loop — the mascot's resting heartbeat.
+  idle: pose('mascot-idle-anim.webp', 1, 'fixed'),
+  // Idle personality variants, reached only while their Tier-B idle sub is
+  // active (routing lives in CompanionCharacter's poseForBehavior).
+  idleStretch: pose('mascot-idle-stretch-anim.webp', 1, 'fixed'), // 2.2s one-shot
+  idleLaugh: pose('mascot-idle-laugh-anim.webp', 1, 'fixed'), // 2.2s one-shot belly laugh
+  idleDoze: pose('mascot-idle-doze-anim.webp', 1, 'fixed'), // 5.9s nod-off/startle loop
+  idleDance: pose('mascot-idle-dance-anim.webp', 1, 'fixed'), // 6.4s happy dance loop
+  idleExercise: pose('mascot-idle-exercise-anim.webp', 1, 'fixed'), // 3.7s squats loop
+  idleThink: pose('mascot-idle-think-anim.webp', 1, 'fixed'), // 5.8s chin-tap loop
+  // Locomotion gait cycles — mirrored at conversion to face RIGHT, so the
+  // FSM's velocity-derived facing flips them exactly like the old art.
+  // (NS chest badge reads true moving right, mirrored moving left — inherent
+  // to any single-orientation locomotion art, and invisible at 96px.)
+  walk: pose('mascot-walk-anim.webp', 1, 'locomotion'), // 3.6s cycle
+  run: pose('mascot-run-anim.webp', 1, 'locomotion'), // 2.2s dash cycle
+  // Vertical clamber cycle for the climb gait (steep walks). Direction-
+  // agnostic — never mirrored.
+  climb: pose('mascot-climb-anim.webp', 1, 'fixed'), // 2.4s loop
+  // 1.9s crouch-jump-land one-shot — the 'hop' idle sub.
+  jump: pose('mascot-jump-anim.webp', 1, 'fixed'),
+  // 3.4s presenting/gesturing loop — the talking pose under narration.
+  pointing: pose('mascot-pointing-anim.webp', 1, 'fixed'),
+  // Chroma-keyed hide-and-pop-out cycle (2.5s), authored right-edge-native
+  // like the old peek art, so the upstream edge flip serves both edges
+  // unchanged. Both peek poses share it.
+  peek: pose('mascot-peek-anim.webp', -1, 'edge'),
+  peekAlt: pose('mascot-peek-anim.webp', -1, 'edge'),
+  // Sitting: sitDown is the 3.6s stand-to-seated transition one-shot played
+  // on arrival; sit is the 3.9s seated-idle loop it settles into (the swap is
+  // timed in CompanionCharacter via COMPANION_SIT_DOWN_MS).
+  sit: pose('mascot-sit-anim.webp', 1, 'fixed'),
+  sitDown: pose('mascot-sit-down-anim.webp', 1, 'fixed'),
+  // Greeting one-shots (frontal, no baked text — safe unmirrored).
+  wave: pose('mascot-wave-anim.webp', 1, 'fixed'), // 2.0s
+  highfive: pose('mascot-highfive-anim.webp', -1, 'locomotion'), // 1.8s, palm toward travel
+  // 2.5s sparkle-swirl cheer one-shot.
+  celebrate: pose('mascot-celebrate-anim.webp', 1, 'fixed'),
+};
 
 export type MascotSource = {
   kind: MascotSourceKind;
   src: string;
 };
 
-/** Fluid-animation upgrades, per pose. An entry here WINS over the static
- * PNG in POSES. Add a line when the file lands in public/assets/mascot/ —
- * that is the entire upgrade path for a state:
- *
- *   walk: { kind: 'img',   src: `${MASCOT_BASE}/mascot-walk-anim.webp` },
- *   wave: { kind: 'video', src: `${MASCOT_BASE}/mascot-wave.webm` },
- *
- * ('img' also covers ANIMATED WebP — browsers loop it natively as an <img>
- * src. 'video' is for transparent .webm, rendered muted/looping/inline.
- * The chroma-key converter for AI-generated green-screen clips lives at
- * scripts/mascot-video-to-webp.py.) */
-const ANIMATED_SOURCES: Partial<Record<PoseKey, MascotSource>> = {
-  // Video-derived 6.5s breathing + blink loop (78 frames, alpha), loops natively.
-  idle: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-anim.webp` },
-  // One-shot idle variants (loop=1: play ONCE, freeze on the final frame —
-  // the FSM's ≥3.5s idle hold outlives them, then the next behavior
-  // crossfades away). Each is reached only while its idle sub is active.
-  idleStretch: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-stretch-anim.webp` }, // 2.2s
-  idleLaugh: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-laugh-anim.webp` }, // 2.2s belly laugh
-  // Looping idle variants (loop=0).
-  idleDoze: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-doze-anim.webp` }, // 5.9s nod-off/startle cycle
-  idleDance: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-dance-anim.webp` }, // 6.4s happy dance
-  idleExercise: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-exercise-anim.webp` }, // 3.7s squats
-  idleThink: { kind: 'img', src: `${MASCOT_BASE}/mascot-idle-think-anim.webp` }, // 5.8s chin-tap ponder
-  // Locomotion. Walk is a real video-derived gait cycle (mirrored at build
-  // time to match the static art's rightward nativeFacing). NOTE: run is
-  // still the static PNG — the generated run clip was off-model (rejected);
-  // regenerate seeded. While a pose's gait is baked into its clip, the
-  // procedural stride bob/rock is gated off in CompanionCharacter (see
-  // isAnimatedPose) so the two never stack.
-  walk: { kind: 'img', src: `${MASCOT_BASE}/mascot-walk-anim.webp` }, // 3.6s cycle
-  // Arrival actions / states.
-  sit: { kind: 'img', src: `${MASCOT_BASE}/mascot-sit-anim.webp` }, // 3.9s seated idle (blink, settle)
-  pointing: { kind: 'img', src: `${MASCOT_BASE}/mascot-pointing-anim.webp` }, // 3.4s presenting/talking loop
-  // Peek: chroma-keyed hide-and-pop-out cycle, mirrored to the SAME
-  // right-edge-native orientation as the static art, so the existing
-  // edge-flip logic serves both edges unchanged (and both poses share it).
-  peek: { kind: 'img', src: `${MASCOT_BASE}/mascot-peek-anim.webp` }, // 2.5s
-  peekAlt: { kind: 'img', src: `${MASCOT_BASE}/mascot-peek-anim.webp` },
-  // One-shots (loop=1). Their FSM holds are sized to outlive them — see
-  // COMPANION_ACKNOWLEDGE_MS (wave/high-five) and COMPANION_CELEBRATE_MS.
-  wave: { kind: 'img', src: `${MASCOT_BASE}/mascot-wave-anim.webp` }, // 2.0s, no baked bubble
-  highfive: { kind: 'img', src: `${MASCOT_BASE}/mascot-highfive-anim.webp` }, // 1.8s
-  celebrate: { kind: 'img', src: `${MASCOT_BASE}/mascot-celebrate-anim.webp` }, // 2.5s sparkle cheer
-  // Preloaded only — jump has no FSM trigger yet (cut with the climb state).
-  jump: { kind: 'img', src: `${MASCOT_BASE}/mascot-jump-anim.webp` }, // 1.9s hop
-};
-
-/** True when a pose has a video-derived animated source (its motion is baked
- * into the clip). CompanionCharacter uses this to gate the PROCEDURAL stride
- * bob/rock off for animated locomotion — a baked gait plus a synthetic bounce
- * would visibly double. */
-export function isAnimatedPose(pose: PoseKey): boolean {
-  return Boolean(ANIMATED_SOURCES[pose]);
-}
-
-/** Best available source for a pose: animated entry if checked in, else the
- * static PNG. Static map — never probes the network. */
-export function resolveMascotSource(pose: PoseKey): MascotSource {
-  return ANIMATED_SOURCES[pose] ?? { kind: 'img', src: POSES[pose].src };
+/** Source for a pose — straight from the table (kept as a function so callers
+ * don't couple to the table shape, and a future per-pose .webm upgrade stays
+ * a one-line kind change). */
+export function resolveMascotSource(poseKey: PoseKey): MascotSource {
+  const { kind, src } = POSES[poseKey];
+  return { kind, src };
 }
 
 // Preload img-kind sources so pose swaps never flicker — in two tiers,
-// because the animated WebPs now total ~8MB and warming them all at mount
-// would compete with the page's own first paint (worst on mobile data):
-//   Tier 1 (immediately): every static PNG (small, and the crossfade
-//     fallback for everything) + the two sources the mascot is guaranteed
-//     to need in its first seconds — the idle loop and the walk cycle.
-//   Tier 2 (browser idle time, ~2.5s fallback): every other animated WebP.
-//     Skipped entirely when the visitor asked to save data — those sources
-//     then simply load on first use, under the 150ms crossfade.
+// because the animated WebPs total ~9MB and warming them all at mount would
+// compete with the page's own first paint (worst on mobile data):
+//   Tier 1 (immediately): the sources the mascot is guaranteed to need in its
+//     first seconds — the idle loop and both gait cycles.
+//   Tier 2 (browser idle time, ~2.5s fallback): every other pose. Skipped
+//     entirely when the visitor asked to save data — those sources then
+//     simply load on first use, under the 150ms crossfade.
 // video-kind sources are always skipped: they can't warm through Image(),
 // and <video> streams on first mount.
+const TIER_1_POSES: ReadonlySet<PoseKey> = new Set<PoseKey>(['idle', 'walk', 'run']);
 let sourcesWarmedUp = false;
 export function warmUpMascotSources(): void {
   if (sourcesWarmedUp || typeof window === 'undefined') return;
@@ -202,15 +159,14 @@ export function warmUpMascotSources(): void {
     const img = new Image();
     img.src = src;
   };
-  const deferred: string[] = [];
-  (Object.keys(POSES) as PoseKey[]).forEach((pose) => {
-    warm(POSES[pose].src); // Tier 1: every static PNG
-    const source = resolveMascotSource(pose);
-    if (source.kind !== 'img' || source.src === POSES[pose].src) return;
-    if (pose === 'idle' || pose === 'walk') {
-      warm(source.src); // Tier 1: first-seconds animated sources
+  const deferred = new Set<string>();
+  (Object.keys(POSES) as PoseKey[]).forEach((poseKey) => {
+    const def = POSES[poseKey];
+    if (def.kind !== 'img') return;
+    if (TIER_1_POSES.has(poseKey)) {
+      warm(def.src);
     } else {
-      deferred.push(source.src);
+      deferred.add(def.src); // Set: peek/peekAlt share a file — warm once
     }
   });
   type ConnectionInfo = { saveData?: boolean };
@@ -237,7 +193,7 @@ type MascotMediaProps = {
 /** One mounted media element. Its own component so the facing useTransform
  * hook is created per mounted element (elements remount per pose via
  * AnimatePresence). img and video share identical crossfade props — a state
- * upgraded to video later swaps exactly like every PNG state does today. */
+ * upgraded to video later swaps exactly like every WebP state does today. */
 const MascotMedia: React.FC<MascotMediaProps> = ({ def, source, facing, staticScaleX }) => {
   // Final on-screen direction = FSM facing × the art's native facing.
   const liveScaleX = useTransform(facing, (f) => (f < 0 ? -1 : 1) * def.nativeFacing);
@@ -282,9 +238,9 @@ export type AnimatedMascotPlayerProps = {
   staticScaleX: number;
 };
 
-/** The crossfading player: resolves the pose's best source and swaps keyed
- * media elements through AnimatePresence (~150ms opacity) so no state
- * change ever hard-pops. */
+/** The crossfading player: resolves the pose's source and swaps keyed media
+ * elements through AnimatePresence (~150ms opacity) so no state change ever
+ * hard-pops. */
 const AnimatedMascotPlayer: React.FC<AnimatedMascotPlayerProps> = ({ poseKey, facing, staticScaleX }) => {
   const def = POSES[poseKey];
   const source = resolveMascotSource(poseKey);

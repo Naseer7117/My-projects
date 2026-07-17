@@ -78,6 +78,7 @@ export const COMPANION_IDLE_SUBS = [
   'exercise',
   'think',
   'laugh',
+  'hop',
 ] as const;
 
 // --- Cursor interaction state machine (see useCompanionCursorEncounter.ts) --
@@ -101,7 +102,24 @@ export const COMPANION_ANTICIPATION_MS = 220; // crouch/wind-up hold before the 
 export const COMPANION_RECOVERY_MS = 260; // settle hold after arrival, before the next state
 export const COMPANION_ARRIVAL_DISTANCE_PX = 6; // px — spring position within this of target counts as "there"
 export const COMPANION_ARRIVAL_VELOCITY_PX_S = 30; // px/s — spring speed must also be under this to count as settled
-export const COMPANION_STRIDE_LENGTH_PX = 46; // px of travel per full stride cycle (0->1 phase wrap) — drives foot-planting
+export const COMPANION_STRIDE_LENGTH_PX = 46; // px of travel per full stride cycle (0->1 phase wrap).
+// NOTE: with every gait now a baked video clip, the stride phase no longer
+// drives a procedural bob (CompanionCharacter stopped consuming it) — the FSM
+// still measures it, and it remains the hook if a distance-synced effect ever
+// returns (e.g. footstep dust).
+
+// Steep walks play the climb clip instead of walk/run: when the planned
+// vertical travel is big AND dominates the horizontal, wheels-on-a-wall
+// reads better than a flat gait dragged diagonally.
+export const COMPANION_CLIMB_MIN_VERTICAL_PX = 220; // px — vertical travel below this never climbs
+export const COMPANION_CLIMB_VERTICAL_RATIO = 1.5; // vertical must exceed horizontal × this
+
+// Sitting is two poses: the stand-to-seated transition one-shot (sitDown,
+// 3.6s), then the seated-idle loop. This is when the renderer swaps them —
+// just before the transition clip's freeze frame, so the crossfade overlaps
+// its settle. Sitting beats must hold LONGER than this (About 4000ms,
+// Contact 9000ms) or the loop never shows.
+export const COMPANION_SIT_DOWN_MS = 3400; // ms
 
 // --- Idle-pool walk trigger (see useCompanionBehavior.ts default scheduler) --
 export const COMPANION_IDLE_HOLD_MIN_MS = 3500; // shortest idle hold before the next walk-somewhere

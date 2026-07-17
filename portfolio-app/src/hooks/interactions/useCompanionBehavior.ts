@@ -12,6 +12,8 @@ import {
   COMPANION_STRIDE_LENGTH_PX,
   COMPANION_CELEBRATE_MS,
   COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION,
+  COMPANION_CLIMB_MIN_VERTICAL_PX,
+  COMPANION_CLIMB_VERTICAL_RATIO,
 } from '../../lib/constants';
 import {
   useCompanionHandoff,
@@ -90,10 +92,11 @@ export type CompanionBehavior =
 
 export type CompanionExpression = 'neutral' | 'happy' | 'surprised' | 'focused' | 'content' | 'talking';
 
-/** Whether the current/last walk plays as a walk or a run — decided once per
- * requestWalk from the planned travel distance (long crossings run). Purely
- * presentational: the spring/stride mechanics are identical either way. */
-export type CompanionGait = 'walk' | 'run';
+/** Which gait clip the current/last walk plays — decided once per requestWalk
+ * from the planned travel: steep, vertically-dominated crossings climb, long
+ * crossings run, everything else walks. Purely presentational: the
+ * spring/stride mechanics are identical for all three. */
+export type CompanionGait = 'walk' | 'run' | 'climb';
 
 /** What the walk should do once it arrives — 'idle' means "just stop and
  * resume idling here," anything else is an arrival action (context beats,
@@ -422,15 +425,22 @@ export function useCompanionBehavior(): CompanionState {
         expression: req.expression ?? 'neutral',
         holdMs: req.holdMs ?? 2200,
       };
-      // Long crossings play the run pose instead of the walk pose — decided
-      // here, once, from the planned distance (the one place that knows both
-      // the start and the target).
+      // Gait — decided here, once, from the planned travel (the one place
+      // that knows both the start and the target): steep vertically-dominated
+      // crossings play the climb clip, long crossings the run clip, the rest
+      // the walk cycle.
       const planDx = req.target.x - x.get();
       const planDy = req.target.y - y.get();
+      const isSteep =
+        Math.abs(planDy) > COMPANION_CLIMB_MIN_VERTICAL_PX &&
+        Math.abs(planDy) > Math.abs(planDx) * COMPANION_CLIMB_VERTICAL_RATIO;
       setGait(
-        Math.sqrt(planDx * planDx + planDy * planDy) > window.innerWidth * COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION
-          ? 'run'
-          : 'walk'
+        isSteep
+          ? 'climb'
+          : Math.sqrt(planDx * planDx + planDy * planDy) >
+              window.innerWidth * COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION
+            ? 'run'
+            : 'walk'
       );
       fsmPhaseRef.current = 'anticipation';
       setBehavior('anticipation');
