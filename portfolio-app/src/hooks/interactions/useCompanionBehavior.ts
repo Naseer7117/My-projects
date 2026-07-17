@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMotionValue, useSpring, useVelocity, MotionValue } from 'framer-motion';
 import { prefersReducedMotion } from '../../lib/env';
-import { randomSafePoint, fixedCornerPoint, hasGutterRoom, Point } from '../../lib/companionZones';
+import {
+  randomSafePoint,
+  fixedCornerPoint,
+  hasGutterRoom,
+  peekEdgePoint,
+  offscreenHidePoint,
+  Point,
+} from '../../lib/companionZones';
+import { findPerchTarget, measurePerchSpan } from '../../lib/companionPerch';
+import { companionSizeFor } from '../../lib/companionConfig';
 import {
   COMPANION_BEHAVIOR_MIN_MS,
   COMPANION_BEHAVIOR_MAX_MS,
@@ -14,6 +23,14 @@ import {
   COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION,
   COMPANION_CLIMB_MIN_VERTICAL_PX,
   COMPANION_CLIMB_VERTICAL_RATIO,
+  COMPANION_SPRING_STIFFNESS,
+  COMPANION_SPRING_DAMPING,
+  COMPANION_SPRING_MASS,
+  COMPANION_ARRIVAL_MIN_HOLD_MS,
+  COMPANION_PEEK_EXPOSURE,
+  COMPANION_PEEK_DUCK_NOTICE_PX,
+  COMPANION_PEEK_RELOCATE_SETTLE_MS,
+  COMPANION_PERCH_CHANCE,
 } from '../../lib/constants';
 import {
   useCompanionHandoff,
@@ -87,6 +104,7 @@ export type CompanionBehavior =
   | 'peeking'
   | 'waving'
   | 'highFive'
+  | 'hopping'
   | 'celebrating'
   | 'talking';
 
@@ -102,7 +120,7 @@ export type CompanionGait = 'walk' | 'run' | 'climb';
  * resume idling here," anything else is an arrival action (context beats,
  * the cursor encounter's acknowledge — 'highFive' when the pointer is close
  * enough at greet time, 'waving' otherwise). */
-export type WalkArrivalAction = 'idle' | 'sitting' | 'sittingCross' | 'peeking' | 'waving' | 'highFive';
+export type WalkArrivalAction = 'idle' | 'sitting' | 'sittingCross' | 'peeking' | 'waving' | 'highFive' | 'hopping';
 
 export type WalkRequest = {
   target: Point;
@@ -201,14 +219,18 @@ export function useCompanionBehavior(): CompanionState {
   const initial = useRef<Point>(enabled ? pickStandingPoint() : { x: 0, y: 0 });
   const targetX = useMotionValue(initial.current.x);
   const targetY = useMotionValue(initial.current.y);
-  // Bouncier, more character-ful position spring than the old 220/22/1 —
-  // the pose-sprite mascot leans on container physics for its life, so the
-  // travel itself should have some overshoot/settle personality. Arrival
-  // detection (distance + velocity thresholds, 2 consecutive frames) was
-  // re-verified against this config; the softer settle just means arrival
-  // fires a beat later, it never flaps (arrival is one-way into recovery).
-  const x = useSpring(targetX, { stiffness: 120, damping: 14, mass: 0.8 });
-  const y = useSpring(targetY, { stiffness: 120, damping: 14, mass: 0.8 });
+  // Deliberately LAZY spring (see constants — pacing overhaul): travel slow
+  // enough for the baked gait cycles to read as actual steps. Arrival
+  // detection (distance + velocity thresholds, 2 consecutive frames) is
+  // measurement-based, so the softer settle just means arrival fires a beat
+  // later, it never flaps (arrival is one-way into recovery).
+  const SPRING = {
+    stiffness: COMPANION_SPRING_STIFFNESS,
+    damping: COMPANION_SPRING_DAMPING,
+    mass: COMPANION_SPRING_MASS,
+  };
+  const x = useSpring(targetX, SPRING);
+  const y = useSpring(targetY, SPRING);
 
   const xVelocity = useVelocity(x);
   const yVelocity = useVelocity(y);
@@ -243,16 +265,77 @@ export function useCompanionBehavior(): CompanionState {
   // the same effect closure, so this is just to satisfy TS's declaration
   // order within one function body).
   const scheduleIdleRef = useRef<() => void>(() => undefined);
+  const requestWalkRef = useRef<(req: WalkRequest) => void>(() => undefined);
 
+  // --- MISSIONS: short scripted step queues (perch on an element, true edge
+  // peek) that ride the normal walk FSM. Each step runs when the previous
+  // one fully completes (enterIdle consumes the queue before scheduling a
+  // random idle), so every leg is a real spring walk with real arrival
+  // detection — never a choreographed timer. Talking cancels outright. ---
+  type MissionStep =
+    | { kind: 'walk'; req: WalkRequest; anchorEl?: Element | null }
+    | { kind: 'relocate' };
+  const missionRef = useRef<MissionStep[]>([]);
+  /** Element the CURRENT step is glued to (perch traverse/hop) — its rect is
+   * re-measured on scroll so the mascot tracks the page moving under it. */
+  const missionAnchorRef = useRef<Element | null>(null);
+
+  const clearMission = useCallback(() => {
+    missionRef.current = [];
+    missionAnchorRef.current = null;
+  }, []);
+  /** True only for the synchronous moment a mission step itself calls
+   * requestWalk — every OTHER caller (context beat, cursor encounter) is an
+   * external pre-emption and cancels whatever mission was in flight. */
+  const missionStepInFlightRef = useRef(false);
+
+  /** Runs the next mission step if one is queued. Returns true when it took
+   * over (the caller must NOT fall through to normal idle scheduling). */
+  const consumeMissionStep = useCallback((): boolean => {
+    const step = missionRef.current.shift();
+    if (!step) {
+      missionAnchorRef.current = null;
+      return false;
+    }
+    if (step.kind === 'walk') {
+      missionAnchorRef.current = step.anchorEl ?? null;
+      missionStepInFlightRef.current = true;
+      requestWalkRef.current(step.req);
+      missionStepInFlightRef.current = false;
+      return true;
+    }
+    // 'relocate': the mascot is fully hidden off-screen — the one place an
+    // instant move is legitimate (nobody can watch a hidden hop). Springs
+    // .jump() so no travel is animated, then normal idling resumes at the
+    // new spot (it re-emerges from the edge on its next walk).
+    missionAnchorRef.current = null;
+    phaseTimeoutRef.current = window.setTimeout(() => {
+      const fresh = hasGutterRoom(window.innerWidth)
+        ? pickStandingPoint()
+        : fixedCornerPoint(window.innerWidth, window.innerHeight);
+      targetX.jump(fresh.x);
+      targetY.jump(fresh.y);
+      x.jump(fresh.x);
+      y.jump(fresh.y);
+      enterIdleRef.current();
+    }, COMPANION_PEEK_RELOCATE_SETTLE_MS);
+    return true;
+  }, [targetX, targetY, x, y]);
+
+  const enterIdleRef = useRef<() => void>(() => undefined);
   const enterIdle = useCallback(() => {
     clearPhaseTimeout();
     fsmPhaseRef.current = 'idle';
     activeWalkRef.current = null;
+    if (consumeMissionStep()) return;
     setBehavior('idle');
     setIdleSub(idlePool.pickIdleSub());
     setExpression('neutral');
     scheduleIdleRef.current();
-  }, [clearPhaseTimeout, idlePool]);
+  }, [clearPhaseTimeout, idlePool, consumeMissionStep]);
+  useEffect(() => {
+    enterIdleRef.current = enterIdle;
+  }, [enterIdle]);
 
   const enterRecoveryThenSettle = useCallback(() => {
     const walk = activeWalkRef.current;
@@ -418,12 +501,15 @@ export function useCompanionBehavior(): CompanionState {
   const requestWalk = useCallback(
     (req: WalkRequest) => {
       if (!enabled) return;
+      if (!missionStepInFlightRef.current) clearMission();
       clearPhaseTimeout();
       activeWalkRef.current = {
         target: req.target,
         arrival: req.arrival,
         expression: req.expression ?? 'neutral',
-        holdMs: req.holdMs ?? 2200,
+        // Clamp every hold to the arrival pose's minimum so no clip is ever
+        // crossfaded away mid-action, whatever the caller asked for.
+        holdMs: Math.max(req.holdMs ?? 2200, COMPANION_ARRIVAL_MIN_HOLD_MS[req.arrival] ?? 0),
       };
       // Gait — decided here, once, from the planned travel (the one place
       // that knows both the start and the target): steep vertically-dominated
@@ -456,8 +542,11 @@ export function useCompanionBehavior(): CompanionState {
         targetY.set(walk.target.y);
       }, COMPANION_ANTICIPATION_MS);
     },
-    [enabled, clearPhaseTimeout, targetX, targetY, x, y]
+    [enabled, clearMission, clearPhaseTimeout, targetX, targetY, x, y]
   );
+  useEffect(() => {
+    requestWalkRef.current = requestWalk;
+  }, [requestWalk]);
 
   // --- default: idle-pool scheduler. Alternates an idle hold with a
   // walk-somewhere-random via the SAME requestWalk FSM used everywhere
@@ -475,11 +564,50 @@ export function useCompanionBehavior(): CompanionState {
     if (idlePausedRef.current) return;
     idleTimeoutRef.current = window.setTimeout(() => {
       if (fsmPhaseRef.current !== 'idle') return;
-      const canRoam = hasGutterRoom(window.innerWidth);
-      const target = canRoam ? pickStandingPoint() : fixedCornerPoint(window.innerWidth, window.innerHeight);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const canRoam = hasGutterRoom(w);
+      const roll = Math.random();
+
+      // PERCH MISSION: walk onto a real page element, traverse its top
+      // border, hop at the far end, hop back down to a legal roam point.
+      // (Desktop-roaming viewports only — on the mobile corner layout the
+      // mascot stays a corner buddy.)
+      if (canRoam && roll < COMPANION_PERCH_CHANCE) {
+        const perch = findPerchTarget(w, h);
+        if (perch) {
+          missionRef.current = [
+            { kind: 'walk', req: { target: perch.start, arrival: 'idle' } },
+            {
+              kind: 'walk',
+              req: { target: perch.end, arrival: 'hopping', expression: 'happy' },
+              anchorEl: perch.el,
+            },
+            { kind: 'walk', req: { target: pickStandingPoint(), arrival: 'idle' } },
+          ];
+          consumeMissionStep();
+          return;
+        }
+      }
+
+      // TRUE EDGE PEEK MISSION: slide mostly off-screen, let the peek clip's
+      // lean-out do the reveal, then duck fully away and (invisibly)
+      // relocate — it re-emerges somewhere else entirely.
+      if (canRoam && roll < COMPANION_PERCH_CHANCE + 0.18) {
+        const peekAt = peekEdgePoint(w, h, COMPANION_PEEK_EXPOSURE);
+        missionRef.current = [
+          { kind: 'walk', req: { target: peekAt, arrival: 'peeking', expression: 'surprised' } },
+          { kind: 'walk', req: { target: offscreenHidePoint(peekAt, w), arrival: 'idle' } },
+          { kind: 'relocate' },
+        ];
+        consumeMissionStep();
+        return;
+      }
+
+      const target = canRoam ? pickStandingPoint() : fixedCornerPoint(w, h);
       requestWalk({ target, arrival: 'idle' });
     }, randomHoldMs());
-  }, [requestWalk]);
+  }, [requestWalk, consumeMissionStep]);
 
   useEffect(() => {
     scheduleIdleRef.current = scheduleIdle;
@@ -509,12 +637,59 @@ export function useCompanionBehavior(): CompanionState {
     };
   }, [enabled, scheduleIdle]);
 
+  // --- perch anchoring: while a mission step is glued to an element (the
+  // traverse and the hop at its far end), every scroll re-measures the
+  // element and re-aims BOTH the springs and the arrival-detection target,
+  // so the mascot stays standing on the border while the page moves under
+  // it. Passive listener; removed the moment no anchor is active. ---
+  useEffect(() => {
+    if (!enabled) return;
+    const onScroll = () => {
+      const el = missionAnchorRef.current;
+      if (!el) return;
+      const phase = fsmPhaseRef.current;
+      if (phase !== 'walking' && phase !== 'arrived' && phase !== 'anticipation') return;
+      const { end } = measurePerchSpan(el, window.innerWidth);
+      if (activeWalkRef.current) activeWalkRef.current.target = end;
+      targetX.set(end.x);
+      targetY.set(end.y);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [enabled, targetX, targetY]);
+
+  // --- peek duck-away: while actually holding a peek, a cursor that comes
+  // close (or any scroll) cuts the hold short — enterIdle then consumes the
+  // queued duck-offscreen step, so the mascot bolts behind the edge. Beat-
+  // driven peeks (cards) have no queued duck step and simply resume idling. ---
+  useEffect(() => {
+    if (!enabled || behavior !== 'peeking') return;
+    const duck = () => {
+      if (fsmPhaseRef.current !== 'arrived') return;
+      activeWalkRef.current = null;
+      enterIdleRef.current();
+    };
+    const onMove = (e: PointerEvent) => {
+      const size = companionSizeFor(window.innerWidth);
+      const dx = e.clientX - (x.get() + size / 2);
+      const dy = e.clientY - (y.get() + size / 2);
+      if (Math.sqrt(dx * dx + dy * dy) < COMPANION_PEEK_DUCK_NOTICE_PX) duck();
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('scroll', duck, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('scroll', duck);
+    };
+  }, [enabled, behavior, x, y]);
+
   // --- talking (highest priority — pre-empts the walk FSM outright) ---
   const wasTalkingRef = useRef(false);
   useEffect(() => {
     if (!enabled) return;
     if (handoff.talking && handoff.anchor) {
       wasTalkingRef.current = true;
+      clearMission();
       clearPhaseTimeout();
       if (idleTimeoutRef.current !== null) {
         window.clearTimeout(idleTimeoutRef.current);
@@ -530,7 +705,7 @@ export function useCompanionBehavior(): CompanionState {
       wasTalkingRef.current = false;
       enterIdle();
     }
-  }, [enabled, handoff, clearPhaseTimeout, targetX, targetY, enterIdle]);
+  }, [enabled, handoff, clearMission, clearPhaseTimeout, targetX, targetY, enterIdle]);
 
   // --- context beat: routes through requestWalk exactly like every other
   // walk-somewhere source (plan §6 — no more instant snap-on-arrival). Each

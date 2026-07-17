@@ -29,6 +29,23 @@ import { COMPANION_POSE_CROSSFADE_S } from 'lib/constants';
  * final on-screen scaleX = desired facing × the art's own native facing.
  * Container physics (position springs, squash, walk arc, tilt, breathing)
  * stay in CompanionCharacter.tsx — this component never moves the mascot.
+ *
+ * ASSET AUDIT — every clip's state (19 pose states over 18 files; both peek
+ * poses share the chroma clip). Minimum play durations live at the FSM level
+ * (COMPANION_ARRIVAL_MIN_HOLD_MS + the ≥4s idle holds), so no clip is ever
+ * cut mid-action:
+ *   idle(6.5s loop)                  — resting state
+ *   idleStretch/Laugh(2.2s shots),
+ *   idleDoze(5.9s)/Dance(6.4s)/
+ *   Exercise(3.7s)/Think(5.8s loops) — Tier-B idle subs (+ 'hop' → jump)
+ *   walk(3.6s)/run(2.2s) loops       — locomotion gaits (walk also perch traverse)
+ *   climb(2.4s loop)                 — steep-walk gait
+ *   jump(1.9s shot)                  — 'hop' idle sub + perch-edge 'hopping'
+ *   pointing(3.4s loop)              — talking under narration
+ *   peek(2.5s loop, ×2 poses)        — true edge peek + card beats
+ *   sitDown(3.6s shot)→sit(3.9s loop)— sitting entry → settled
+ *   wave(2.0s)/highfive(1.8s shots)  — cursor-encounter greets
+ *   celebrate(2.5s shot)             — outbound-click cheer
  */
 
 export type PoseKey =
@@ -195,6 +212,9 @@ type MascotMediaProps = {
  * AnimatePresence). img and video share identical crossfade props — a state
  * upgraded to video later swaps exactly like every WebP state does today. */
 const MascotMedia: React.FC<MascotMediaProps> = ({ def, source, facing, staticScaleX }) => {
+  // Fallback logic: if a clip fails to load (cache eviction, partial deploy),
+  // fall back to the idle loop rather than rendering nothing.
+  const [failed, setFailed] = React.useState(false);
   // Final on-screen direction = FSM facing × the art's native facing.
   const liveScaleX = useTransform(facing, (f) => (f < 0 ? -1 : 1) * def.nativeFacing);
   const scaleX = def.facingMode === 'locomotion' ? liveScaleX : staticScaleX;
@@ -223,7 +243,8 @@ const MascotMedia: React.FC<MascotMediaProps> = ({ def, source, facing, staticSc
   return (
     <m.img
       className="companion__pose"
-      src={source.src}
+      src={failed ? POSES.idle.src : source.src}
+      onError={() => setFailed(true)}
       alt=""
       draggable={false}
       style={{ x: '-50%', scaleX }}

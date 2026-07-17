@@ -90,6 +90,10 @@ function poseForBehavior(
       return 'wave';
     case 'highFive':
       return 'highfive';
+    case 'hopping':
+      // Perch missions: the celebratory hop at the far end of a traversed
+      // element border (also the jump clip's second life beyond the idle sub).
+      return 'jump';
     case 'celebrating':
       return 'celebrate';
     case 'talking':
@@ -112,7 +116,12 @@ function poseForBehavior(
       return (idleSub && idleSubPose[idleSub]) || 'idle';
     }
     case 'anticipation':
+      return 'idle';
     case 'recovery':
+      // Keep showing the gait clip through the arrival settle. Cutting to
+      // idle here flashed a third pose for 260ms between the walk and its
+      // arrival action — the "rapid cutting" the pacing overhaul removes.
+      return gait === 'run' ? 'run' : gait === 'climb' ? 'climb' : 'walk';
     default:
       return 'idle';
   }

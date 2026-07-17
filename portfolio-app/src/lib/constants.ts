@@ -48,8 +48,31 @@ export const PARTICLE_LINK_RGB = '120, 150, 255';
 export const CURSOR_LINK_RGB = '34, 211, 238';
 
 // --- Roaming companion character --------------------------------------------
-export const COMPANION_BEHAVIOR_MIN_MS = 3500; // shortest a non-walk behavior holds
-export const COMPANION_BEHAVIOR_MAX_MS = 7000; // longest a non-walk behavior holds
+export const COMPANION_BEHAVIOR_MIN_MS = 4000; // shortest a non-walk behavior holds (was 3500 — unhurried pacing pass)
+export const COMPANION_BEHAVIOR_MAX_MS = 8000; // longest a non-walk behavior holds
+
+// Position-spring feel. Softened (was 120/14/0.8) in the pacing overhaul:
+// the mascot was crossing the screen too fast for its walk cycle to read.
+// A lazier spring = slower, calmer travel; arrival detection is measurement-
+// based so it simply fires a beat later — never breaks.
+export const COMPANION_SPRING_STIFFNESS = 70;
+export const COMPANION_SPRING_DAMPING = 17;
+export const COMPANION_SPRING_MASS = 0.9;
+
+// Minimum arrival-action holds, keyed by WalkArrivalAction. The FSM clamps
+// every requested hold to at least these so no clip is ever cut mid-action
+// ("actions complete naturally" — owner spec). Sized to each pose's clip:
+// sitting = 3.6s sitDown transition + ≥2s of the seated loop; peeking = the
+// 3s exposure the peek sequence spec asks for; waving/highFive cover their
+// 2.0/1.8s one-shots with a settle beat; hopping covers the 1.9s jump.
+export const COMPANION_ARRIVAL_MIN_HOLD_MS: Record<string, number> = {
+  sitting: 5800,
+  sittingCross: 4200,
+  peeking: 3000,
+  waving: 2500,
+  highFive: 2500,
+  hopping: 2400,
+};
 
 // Tier A ("which named in-place behavior to enter next while idle") no
 // longer exists as a real weighted choice — sitting/sittingCross/peeking are
@@ -117,9 +140,23 @@ export const COMPANION_CLIMB_VERTICAL_RATIO = 1.5; // vertical must exceed horiz
 // Sitting is two poses: the stand-to-seated transition one-shot (sitDown,
 // 3.6s), then the seated-idle loop. This is when the renderer swaps them —
 // just before the transition clip's freeze frame, so the crossfade overlaps
-// its settle. Sitting beats must hold LONGER than this (About 4000ms,
-// Contact 9000ms) or the loop never shows.
+// its settle. COMPANION_ARRIVAL_MIN_HOLD_MS.sitting guarantees every sitting
+// hold outlives this plus a stretch of the loop.
 export const COMPANION_SIT_DOWN_MS = 3400; // ms
+
+// --- True edge peeking (see the peek mission in useCompanionBehavior) -------
+// The mascot slides most of its container OFF-SCREEN and lets the peek clip's
+// lean-out do the reveal — a genuine "behind the viewport edge" read.
+export const COMPANION_PEEK_EXPOSURE = 0.35; // fraction of the container left on-screen while peeking
+export const COMPANION_PEEK_DUCK_NOTICE_PX = 220; // px — cursor this close (or any scroll) makes the peek duck away
+export const COMPANION_PEEK_RELOCATE_SETTLE_MS = 350; // ms fully hidden before the invisible relocate
+
+// --- DOM perch missions (see lib/companionPerch.ts) -------------------------
+// Occasionally, instead of a random gutter stroll, the mascot walks onto a
+// real page element (hero portrait border, section heading, card top),
+// traverses its top edge, hops, and hops back down to a legal roam point.
+export const COMPANION_PERCH_CHANCE = 0.35; // probability an idle reschedule becomes a perch mission (when a target is visible)
+export const COMPANION_PERCH_TRAVERSE_MIN_PX = 120; // px — skip targets whose walkable top edge is narrower than this
 
 // --- Idle-pool walk trigger (see useCompanionBehavior.ts default scheduler) --
 export const COMPANION_IDLE_HOLD_MIN_MS = 3500; // shortest idle hold before the next walk-somewhere
@@ -130,7 +167,7 @@ export const COMPANION_IDLE_HOLD_MAX_MS = 7000; // longest idle hold before the 
 // ready — transparent <video>) resolved per behavior from a static source
 // map; all life/physics is conveyed at the container level (breathing +
 // idle drift, squash, stride bob, walk arc, tilt).
-export const COMPANION_POSE_CROSSFADE_S = 0.15; // s — opacity crossfade between pose sources (~150ms per spec)
+export const COMPANION_POSE_CROSSFADE_S = 0.2; // s — opacity crossfade between pose sources (200ms per the motion-engine spec; was 150ms)
 export const COMPANION_BREATHE_PERIOD_S = 3.5; // s — idle breathing loop duration
 export const COMPANION_BREATHE_LIFT_PX = 8; // px — idle breathing rise (y: [0, -8, 0])
 export const COMPANION_DRIFT_PERIOD_S = 7; // s — stationary-idle horizontal drift loop (weightless float)

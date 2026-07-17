@@ -72,13 +72,26 @@ export function fixedCornerPoint(viewportWidth: number, viewportHeight: number):
   };
 }
 
-/** A point near the viewport edge, for the "peek" behavior (leaning in from offscreen). */
-export function peekEdgePoint(viewportWidth: number, viewportHeight: number): Point {
+/** TRUE edge peek: most of the container hangs OFF-SCREEN and only
+ * `exposure` (0..1) of it stays visible — the peek clip's own lean-out does
+ * the reveal, so the mascot genuinely appears from behind the viewport edge.
+ * Off-screen positions are trivially safe (nothing to overlap). */
+export function peekEdgePoint(viewportWidth: number, viewportHeight: number, exposure: number): Point {
   const size = companionSizeFor(viewportWidth);
   const fromLeft = Math.random() < 0.5;
   const y = NAVBAR_CLEARANCE + Math.random() * Math.max(0, viewportHeight - NAVBAR_CLEARANCE - EDGE_INSET - size);
-  const x = fromLeft ? EDGE_INSET : viewportWidth - EDGE_INSET - size;
+  const hidden = size * (1 - exposure);
+  const x = fromLeft ? -hidden : viewportWidth - size + hidden;
   return { x, y };
+}
+
+/** Fully-hidden point just past the nearest side edge — the peek's duck-away
+ * target. Once the mascot settles here it is invisible, which is the one
+ * place an instant relocate is legitimate (nobody can see a hidden hop). */
+export function offscreenHidePoint(from: Point, viewportWidth: number): Point {
+  const size = companionSizeFor(viewportWidth);
+  const nearLeft = from.x + size / 2 < viewportWidth / 2;
+  return { x: nearLeft ? -(size + 8) : viewportWidth + 8, y: from.y };
 }
 
 /**

@@ -69,7 +69,8 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 | Layer | File | Owns |
 |---|---|---|
 | Sizes/layout constants | `src/lib/companionConfig.ts` | THE single source of truth: desktop **96px**, mobile **64px**, breakpoint 767, `EDGE_INSET` 16, `NAVBAR_CLEARANCE` 84, `CONTENT_MAX_WIDTH` 1280. `applyCompanionSizeCssVar()` syncs `--companion-size` to CSS at app start. |
-| Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1536px**), `fixedCornerPoint` (mobile bottom-right pocket), `peekEdgePoint`, `targetedAnchorPoint` (context beats, always clamped back into legal zones). Structural guarantee: outside the 1280px content column is empty background on every page. |
+| Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1536px**), `fixedCornerPoint` (mobile bottom-right pocket), `peekEdgePoint(exposure)` (TRUE edge peek — container mostly off-screen), `offscreenHidePoint` (duck-away target), `targetedAnchorPoint` (context beats). Structural guarantee: outside the 1280px content column is empty background on every page. |
+| DOM perching | `src/lib/companionPerch.ts` | Finds perchable elements (hero portrait, `.section-title`, `.card`) that are fully in-viewport and wide enough, and measures their top border into mascot coordinates (`measurePerchSpan` re-runs on scroll so the mascot stays glued). Deliberately relaxes gutter-only roaming (owner request) — the mascot stands ABOVE elements, never on their content. |
 | The FSM | `src/hooks/interactions/useCompanionBehavior.ts` | idle → anticipation (220ms) → walking → **measured arrival** (dist < 6px AND speed < 30px/s for 2 consecutive frames — NEVER a timer) → recovery (260ms) → arrival action (sit/peek/wave/highFive) or idle. Position = `useSpring` (stiffness 120, damping 14, mass 0.8). Facing from x-velocity with 40px/s deadzone. Distance-synced stride: real px accumulate, 46px per cycle, written to `strideRef` + `--stride-phase`. Priority: talking handoff > everything (snaps, no walk); celebration only fires when parked. |
 | Idle variety | `src/hooks/interactions/useCompanionIdlePool.ts` | "Tier-B" idle subs = micro-behaviors WITHIN the idle state (blink, look around, stretch…, `COMPANION_IDLE_SUBS` in constants.ts, 9 entries), picked per idle hold with no immediate repeat. (There is no Tier-A system anymore — big behaviors like sit/peek are reachable only as walk arrival actions.) |
 | Per-page beats | `src/hooks/interactions/useCompanionContextBeat.ts` | One walk-to-element beat per route landing: Home→peek at hero portrait (left side, enabled only while narration is NOT playing — the talking handoff outranks it), About→sit at timeline, Skills/Projects→peek at first card, Contact→sit at card. |
@@ -81,9 +82,12 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 
 ### DO-NOT-BREAK invariants (each was a real bug)
 
-1. **Never teleport/slide**: position is springs only; no `transition: transform`
-   in CSS; arrival is DETECTED from the live spring, never assumed from a timer
-   (a fixed walk timer was the original "floating sticker" bug).
+1. **Never teleport/slide ON SCREEN**: position is springs only; no
+   `transition: transform` in CSS; arrival is DETECTED from the live spring,
+   never assumed from a timer (a fixed walk timer was the original "floating
+   sticker" bug). The ONE sanctioned exception: the peek mission's relocate
+   uses `.jump()` on the springs — but only after the mascot has settled
+   FULLY off-screen (invisible), so no teleport is ever visible.
 2. **StrictMode guard placement** (`useCompanionContextBeat.ts`): the
    fired-once guard is set INSIDE the timeout callback, not at schedule time.
    Setting it at schedule time makes beats never fire on the dev server.
@@ -308,3 +312,20 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   removed (baked gaits); hop arc kept except for climb. 18 files / 8.8MB in
   assets/mascot. All gates green; CDP-verified: sitDown→sit swap, run, climb,
   hop all seen live; zero .png requests. NOT pushed.
+- **2026-07-17 (motion engine)** — Motion & asset engine overhaul (owner spec):
+  (1) PACING — springs softened 120/14/0.8 → 70/17/0.9 (constants), crossfade
+  150→200ms, idle holds 4-8s, per-arrival minimum holds
+  (COMPANION_ARRIVAL_MIN_HOLD_MS) clamp every hold so no clip cuts mid-action,
+  recovery now keeps the gait pose (killed a 260ms idle flash between walk
+  and arrival). (2) MISSIONS — a step queue rides the normal walk FSM
+  (missionRef in useCompanionBehavior; external requestWalk callers cancel
+  it; talking cancels it). Perch mission (~35% of idle reschedules when a
+  target is visible): approach → traverse a real element's TOP BORDER
+  (hero portrait / .section-title / .card, via lib/companionPerch.ts, rect
+  re-measured on scroll) → 'hopping' behavior (jump clip) at the far end →
+  descend to a legal roam point. Peek mission (~18%): walk to
+  peekEdgePoint(0.35 exposure) mostly OFF-SCREEN → hold ≥3s → duck fully
+  off-screen (early if cursor <220px or any scroll) → invisible spring
+  .jump() relocate → re-emerges elsewhere. All gates green; CDP-verified
+  live on #skills: perch traverse ON a card border, edge hop, true edge peek
+  at x=-62, hidden relocate (-104→319). NOT pushed.
