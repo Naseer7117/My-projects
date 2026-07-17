@@ -9,7 +9,7 @@ import {
   offscreenHidePoint,
   Point,
 } from '../../lib/companionZones';
-import { findPerchTarget, measurePerchSpan } from '../../lib/companionPerch';
+import { findPerchTarget, measurePerchSpan, perchApproachSide, gutterRampPoint } from '../../lib/companionPerch';
 import { companionSizeFor } from '../../lib/companionConfig';
 import {
   COMPANION_BEHAVIOR_MIN_MS,
@@ -31,6 +31,8 @@ import {
   COMPANION_PEEK_DUCK_NOTICE_PX,
   COMPANION_PEEK_RELOCATE_SETTLE_MS,
   COMPANION_PERCH_CHANCE,
+  COMPANION_NAP_AFTER_MS,
+  COMPANION_NAP_RECHECK_MS,
 } from '../../lib/constants';
 import {
   useCompanionHandoff,
@@ -142,6 +144,9 @@ export type WalkArc = {
   plannedDistancePx: number;
   /** Horizontal direction of the planned travel: 1 = rightward, -1 = leftward. */
   dirX: 1 | -1;
+  /** True while this leg walks ALONG a surface (perch border/ramp legs) —
+   * the renderer must not add the hop arc; feet stay planted on the line. */
+  suppressArc: boolean;
 };
 
 export type CompanionState = {
@@ -243,7 +248,7 @@ export function useCompanionBehavior(): CompanionState {
   }, [xVelocity, facing]);
 
   const strideRef = useRef(0);
-  const walkArcRef = useRef<WalkArc>({ progress: 0, plannedDistancePx: 0, dirX: 1 });
+  const walkArcRef = useRef<WalkArc>({ progress: 0, plannedDistancePx: 0, dirX: 1, suppressArc: false });
   const rootRef = useRef<HTMLDivElement>(null);
 
   // --- the FSM's own phase, separate from `behavior` (behavior is the CSS/
@@ -273,16 +278,27 @@ export function useCompanionBehavior(): CompanionState {
   // random idle), so every leg is a real spring walk with real arrival
   // detection — never a choreographed timer. Talking cancels outright. ---
   type MissionStep =
-    | { kind: 'walk'; req: WalkRequest; anchorEl?: Element | null }
+    | {
+        kind: 'walk';
+        req: WalkRequest;
+        anchorEl?: Element | null;
+        /** Which end of the anchored span this leg aims at (scroll re-aim). */
+        anchorAim?: 'start' | 'end';
+        /** Surface leg (border/ramp): renderer suppresses the hop arc. */
+        onSurface?: boolean;
+      }
     | { kind: 'relocate' };
   const missionRef = useRef<MissionStep[]>([]);
   /** Element the CURRENT step is glued to (perch traverse/hop) — its rect is
    * re-measured on scroll so the mascot tracks the page moving under it. */
   const missionAnchorRef = useRef<Element | null>(null);
+  const missionAnchorAimRef = useRef<'start' | 'end'>('end');
+  const suppressArcRef = useRef(false);
 
   const clearMission = useCallback(() => {
     missionRef.current = [];
     missionAnchorRef.current = null;
+    suppressArcRef.current = false;
   }, []);
   /** True only for the synchronous moment a mission step itself calls
    * requestWalk — every OTHER caller (context beat, cursor encounter) is an
@@ -299,6 +315,8 @@ export function useCompanionBehavior(): CompanionState {
     }
     if (step.kind === 'walk') {
       missionAnchorRef.current = step.anchorEl ?? null;
+      missionAnchorAimRef.current = step.anchorAim ?? 'end';
+      suppressArcRef.current = step.onSurface ?? false;
       missionStepInFlightRef.current = true;
       requestWalkRef.current(step.req);
       missionStepInFlightRef.current = false;
@@ -427,6 +445,7 @@ export function useCompanionBehavior(): CompanionState {
           walkArcRef.current.plannedDistancePx = 0;
         }
         walkArcRef.current.progress = 0;
+        walkArcRef.current.suppressArc = suppressArcRef.current;
       }
       wasWalking = isWalking;
 
@@ -556,6 +575,34 @@ export function useCompanionBehavior(): CompanionState {
   const idleTimeoutRef = useRef<number | null>(null);
   const idlePausedRef = useRef(false);
 
+  // --- inactivity tracking for the nap (doze-in-place) branch above ---
+  const lastActivityRef = useRef(Date.now());
+  const nappingRef = useRef(false);
+  useEffect(() => {
+    if (!enabled) return;
+    const onActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (nappingRef.current) {
+        // Wake up: drop the doze immediately and resume normal idling.
+        nappingRef.current = false;
+        if (fsmPhaseRef.current === 'idle') {
+          setIdleSub(idlePool.pickIdleSub());
+          scheduleIdleRef.current();
+        }
+      }
+    };
+    window.addEventListener('pointermove', onActivity, { passive: true });
+    window.addEventListener('scroll', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity, { passive: true });
+    window.addEventListener('touchstart', onActivity, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', onActivity);
+      window.removeEventListener('scroll', onActivity);
+      window.removeEventListener('keydown', onActivity);
+      window.removeEventListener('touchstart', onActivity);
+    };
+  }, [enabled, idlePool]);
+
   const scheduleIdle = useCallback(() => {
     if (idleTimeoutRef.current !== null) {
       window.clearTimeout(idleTimeoutRef.current);
@@ -566,23 +613,56 @@ export function useCompanionBehavior(): CompanionState {
       if (fsmPhaseRef.current !== 'idle') return;
       const w = window.innerWidth;
       const h = window.innerHeight;
+
+      // INACTIVITY: no input for a while -> doze off IN PLACE (no wandering
+      // at all while nobody's watching); any activity wakes him (listener
+      // below). Re-checked on a short timer so the nap persists.
+      if (Date.now() - lastActivityRef.current > COMPANION_NAP_AFTER_MS) {
+        nappingRef.current = true;
+        setIdleSub('doze');
+        idleTimeoutRef.current = window.setTimeout(() => {
+          if (fsmPhaseRef.current === 'idle') scheduleIdleRef.current();
+        }, COMPANION_NAP_RECHECK_MS);
+        return;
+      }
+      nappingRef.current = false;
+
       const canRoam = hasGutterRoom(w);
       const roll = Math.random();
 
-      // PERCH MISSION: walk onto a real page element, traverse its top
-      // border, hop at the far end, hop back down to a legal roam point.
+      // PERCH MISSION: routed via the side gutter so no leg ever beelines
+      // through paragraph text — gutter ramp (same row as the border) ->
+      // step onto the border's near end -> traverse the top edge -> hop ->
+      // ramp back off -> settle at a legal roam point. Surface legs suppress
+      // the hop arc so his feet stay planted on the line.
       // (Desktop-roaming viewports only — on the mobile corner layout the
       // mascot stays a corner buddy.)
       if (canRoam && roll < COMPANION_PERCH_CHANCE) {
         const perch = findPerchTarget(w, h);
         if (perch) {
+          const side = perchApproachSide(perch, w);
+          const nearEnd = side === 'left' ? perch.start : perch.end;
+          const farEnd = side === 'left' ? perch.end : perch.start;
+          const nearAim = side === 'left' ? 'start' : 'end';
+          const farAim = side === 'left' ? 'end' : 'start';
+          const ramp = gutterRampPoint(side, nearEnd.y, w);
           missionRef.current = [
-            { kind: 'walk', req: { target: perch.start, arrival: 'idle' } },
+            { kind: 'walk', req: { target: ramp, arrival: 'idle' } },
             {
               kind: 'walk',
-              req: { target: perch.end, arrival: 'hopping', expression: 'happy' },
+              req: { target: nearEnd, arrival: 'idle' },
               anchorEl: perch.el,
+              anchorAim: nearAim,
+              onSurface: true,
             },
+            {
+              kind: 'walk',
+              req: { target: farEnd, arrival: 'hopping', expression: 'happy' },
+              anchorEl: perch.el,
+              anchorAim: farAim,
+              onSurface: true,
+            },
+            { kind: 'walk', req: { target: gutterRampPoint(side, nearEnd.y, w), arrival: 'idle' }, onSurface: true },
             { kind: 'walk', req: { target: pickStandingPoint(), arrival: 'idle' } },
           ];
           consumeMissionStep();
@@ -649,10 +729,11 @@ export function useCompanionBehavior(): CompanionState {
       if (!el) return;
       const phase = fsmPhaseRef.current;
       if (phase !== 'walking' && phase !== 'arrived' && phase !== 'anticipation') return;
-      const { end } = measurePerchSpan(el, window.innerWidth);
-      if (activeWalkRef.current) activeWalkRef.current.target = end;
-      targetX.set(end.x);
-      targetY.set(end.y);
+      const span = measurePerchSpan(el, window.innerWidth);
+      const aim = missionAnchorAimRef.current === 'start' ? span.start : span.end;
+      if (activeWalkRef.current) activeWalkRef.current.target = aim;
+      targetX.set(aim.x);
+      targetY.set(aim.y);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);

@@ -7,6 +7,7 @@ import {
   COMPANION_APPROACH_DELAY_MS,
   COMPANION_APPROACH_OFFSET,
   COMPANION_ACKNOWLEDGE_MS,
+  COMPANION_GREET_COOLDOWN_MS,
   COMPANION_HIGHFIVE_RADIUS,
 } from '../../lib/constants';
 import { Point } from '../../lib/companionZones';
@@ -70,6 +71,9 @@ export function useCompanionCursorEncounter(
 ): void {
   const [state, dispatch] = useReducer(reducer, { phase: 'dormant' });
   const noticingSince = useRef<number | null>(null);
+  /** When the last greet fired — a long cooldown keeps a lingering cursor
+   * from making him wave on loop (read as a glitch in the live demo). */
+  const lastGreetAt = useRef<number>(-Infinity);
 
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
@@ -88,6 +92,7 @@ export function useCompanionCursorEncounter(
 
       if (state.phase === 'dormant') {
         if (!isIdleNow()) return; // never interrupt an in-flight walk/context-beat
+        if (now - lastGreetAt.current < COMPANION_GREET_COOLDOWN_MS) return; // one greet, then a long breather
         if (dist < COMPANION_NOTICE_RADIUS) {
           if (noticingSince.current === null) noticingSince.current = now;
           if (now - noticingSince.current >= COMPANION_NOTICE_DEBOUNCE_MS) {
@@ -109,6 +114,7 @@ export function useCompanionCursorEncounter(
           // the ONLY branch — no chase/flee reintroduction.
           const arrival: WalkArrivalAction = dist < COMPANION_HIGHFIVE_RADIUS ? 'highFive' : 'waving';
           requestWalk({ target, arrival, expression: 'happy', holdMs: COMPANION_ACKNOWLEDGE_MS });
+          lastGreetAt.current = now;
           dispatch({ type: 'walked' });
           noticingSince.current = null;
         }

@@ -83,19 +83,17 @@ export const COMPANION_ARRIVAL_MIN_HOLD_MS: Record<string, number> = {
 // Tier B — which idle SUB-animation plays while behavior === 'idle' itself
 // (see spec §2). Picked uniformly, excluding whichever played last time.
 // Subs with a video-derived animation of their own (stretch, doze, dance,
-// exercise, think, laugh) swap the mascot to that clip for the hold —
-// poseForBehavior in CompanionCharacter.tsx owns that routing. The rest show
-// the base idle loop (which already breathes and blinks).
+// exercise, think, laugh, hop) swap the mascot to that clip for the hold —
+// poseForBehavior in CompanionCharacter.tsx owns that routing. The three
+// plain subs show the base idle loop (which already breathes and blinks).
+// REBALANCED (was 8 plain / 7 animated): most plain subs were visual no-ops
+// — identical base-idle holds back to back read as "stuck in basic idle".
+// 7 of 10 picks now land on a distinct clip.
 export const COMPANION_IDLE_SUBS = [
   'blinking',
-  'lookAroundLeft',
-  'lookAroundRight',
   'weightShift',
-  'rock',
   'smilePulse',
   'stretch',
-  'yawn',
-  'footTap',
   'doze',
   'dance',
   'exercise',
@@ -157,6 +155,22 @@ export const COMPANION_PEEK_RELOCATE_SETTLE_MS = 350; // ms fully hidden before 
 // traverses its top edge, hops, and hops back down to a legal roam point.
 export const COMPANION_PERCH_CHANCE = 0.35; // probability an idle reschedule becomes a perch mission (when a target is visible)
 export const COMPANION_PERCH_TRAVERSE_MIN_PX = 120; // px — skip targets whose walkable top edge is narrower than this
+// Feet-planting correction: the clip crops carry ~8px of transparent padding
+// under the feet plus the ground shadow, so standing exactly at
+// (top - size) reads as hovering. Sinking the container this many px makes
+// the feet visually TOUCH the border.
+export const COMPANION_PERCH_FOOT_OFFSET_PX = 10;
+
+// --- Inactivity controller ---------------------------------------------------
+// No pointer/scroll/key input for this long -> the mascot dozes off in place
+// (the sleep clip) instead of wandering; any input wakes him.
+export const COMPANION_NAP_AFTER_MS = 8000;
+export const COMPANION_NAP_RECHECK_MS = 4000; // while napping, how often to re-check for activity
+
+// Cursor-encounter cooldown: after one greet (wave/high-five), ignore the
+// cursor for this long — without it a hovering visitor made him wave on
+// loop, which read as a glitch, not charm.
+export const COMPANION_GREET_COOLDOWN_MS = 45000;
 
 // --- Idle-pool walk trigger (see useCompanionBehavior.ts default scheduler) --
 export const COMPANION_IDLE_HOLD_MIN_MS = 3500; // shortest idle hold before the next walk-somewhere

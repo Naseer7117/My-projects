@@ -335,7 +335,14 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
     let rafId = 0;
     let running = false;
     const tick = () => {
-      const { progress, plannedDistancePx, dirX } = walkArcRef.current;
+      const { progress, plannedDistancePx, dirX, suppressArc } = walkArcRef.current;
+      if (suppressArc) {
+        // Surface leg (perch border/ramp): feet stay planted on the line —
+        // no hop arc, no lean.
+        node.style.transform = '';
+        if (running) rafId = requestAnimationFrame(tick);
+        return;
+      }
       const apex = Math.min(
         COMPANION_ARC_MAX_PX,
         Math.max(COMPANION_ARC_MIN_PX, plannedDistancePx * COMPANION_ARC_HEIGHT_PER_PX)

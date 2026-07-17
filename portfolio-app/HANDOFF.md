@@ -329,3 +329,23 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   .jump() relocate → re-emerges elsewhere. All gates green; CDP-verified
   live on #skills: perch traverse ON a card border, edge hop, true edge peek
   at x=-62, hidden relocate (-104→319). NOT pushed.
+- **2026-07-17 (critical fixes)** — Three live-demo bugs fixed. (1) GREEN
+  FLASH on peek: root cause was the loop-seam crossfade blending RAW RGB —
+  transparent pixels still carried the green wall color, so tail frames
+  glowed green each loop (plus resize fringing from alpha-0 green
+  neighbors). Re-keyed (scripts/out rework_peek_v2 pattern: global despill,
+  zero RGB under alpha<10 BEFORE resize, no seam blend) with a hard audit —
+  the encode is only accepted at ZERO green pixels; live screenshots also
+  scanned clean. LESSON for all future loops: never crossfade-blend raw RGB
+  where alpha=0; zero it first. (2) FEET: COMPANION_PERCH_FOOT_OFFSET_PX=10
+  sinks the container so feet touch borders (crops carry ~8px pad+shadow);
+  perch missions are now ROUTED via a same-row gutter ramp (5 legs) so no
+  leg beelines through paragraph text; surface legs set WalkArc.suppressArc
+  and the renderer skips the hop arc (feet stay planted). Verified: bottom
+  minus border-top = 10.0px exactly. (3) LIVELINESS: inactivity controller —
+  no input for 8s (COMPANION_NAP_AFTER_MS) → dozes IN PLACE, re-checked
+  every 4s, any input wakes him (verified live both ways); cursor-greet
+  cooldown 45s (was waving on loop at a lingering cursor); idle pool
+  rebalanced 15→10 subs (7 of 10 picks now land on a distinct clip — the
+  removed subs were visual no-ops; re-adding idle-look later = new sub +
+  idleStretch pattern). NOT pushed.

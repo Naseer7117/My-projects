@@ -15,8 +15,8 @@
  *     to the border even while the page moves under it;
  *   - pointer-events stay off — the mascot can never block a click.
  */
-import { COMPANION_PERCH_TRAVERSE_MIN_PX } from 'lib/constants';
-import { companionSizeFor, NAVBAR_CLEARANCE } from 'lib/companionConfig';
+import { COMPANION_PERCH_TRAVERSE_MIN_PX, COMPANION_PERCH_FOOT_OFFSET_PX } from 'lib/constants';
+import { companionSizeFor, NAVBAR_CLEARANCE, EDGE_INSET } from 'lib/companionConfig';
 import { Point } from 'lib/companionZones';
 
 export type PerchSpan = {
@@ -37,9 +37,28 @@ const PERCH_SELECTORS = [
 ];
 
 /** The mascot's y when standing ON an element's top border: feet at the
- * border, body above it. */
+ * border, body above it. The foot offset sinks the container slightly so the
+ * feet (which sit above ~8px of transparent crop padding + shadow) visually
+ * TOUCH the border instead of hovering over it. */
 function perchY(rect: DOMRect, size: number): number {
-  return rect.top - size;
+  return rect.top - size + COMPANION_PERCH_FOOT_OFFSET_PX;
+}
+
+/** Which side gutter is the natural on/off ramp for this span. */
+export function perchApproachSide(span: { start: Point; end: Point }, viewportWidth: number): 'left' | 'right' {
+  const mid = (span.start.x + span.end.x) / 2;
+  return mid < viewportWidth / 2 ? 'left' : 'right';
+}
+
+/** The gutter point at the SAME height as the perch — the routed entry/exit
+ * ramp. Walking gutter → ramp → border keeps the whole approach along the
+ * border's row instead of a diagonal beeline through paragraph text. */
+export function gutterRampPoint(side: 'left' | 'right', y: number, viewportWidth: number): Point {
+  const size = companionSizeFor(viewportWidth);
+  return {
+    x: side === 'left' ? EDGE_INSET : viewportWidth - EDGE_INSET - size,
+    y: Math.max(NAVBAR_CLEARANCE, y),
+  };
 }
 
 /** Re-measure a perch element into fresh start/end points — called at mission
