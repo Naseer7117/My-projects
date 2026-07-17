@@ -1,7 +1,7 @@
 import React from 'react';
 import { m, useMotionValue, useSpring, MotionValue, Variants } from 'framer-motion';
 import { CompanionBehavior, CompanionGait, WalkArc } from 'hooks/interactions/useCompanionBehavior';
-import AnimatedMascotPlayer, { PoseKey, POSES, warmUpMascotSources } from 'components/effects/AnimatedMascotPlayer';
+import AnimatedMascotPlayer, { PoseKey, POSES, warmUpMascotSources, isAnimatedPose } from 'components/effects/AnimatedMascotPlayer';
 import { hasFinePointer, prefersReducedMotion } from 'lib/env';
 import {
   COMPANION_BREATHE_PERIOD_S,
@@ -91,12 +91,22 @@ function poseForBehavior(
       return 'celebrate';
     case 'talking':
       return 'pointing';
-    case 'idle':
-      // The FSM's Tier-B idle pool occasionally rolls 'stretch' — that hold
-      // plays the one-shot stretch animation instead of the base idle loop.
-      // Only true idle (not anticipation/recovery, which must stay visually
-      // still for the squash tell to read).
-      return idleSub === 'stretch' ? 'idleStretch' : 'idle';
+    case 'idle': {
+      // The FSM's Tier-B idle pool occasionally rolls a sub with its own
+      // video-derived animation — that hold plays the variant clip instead of
+      // the base idle loop. Every other sub keeps the base loop (it already
+      // breathes and blinks). Only true idle (not anticipation/recovery,
+      // which must stay visually still for the squash tell to read).
+      const idleSubPose: Record<string, PoseKey> = {
+        stretch: 'idleStretch',
+        doze: 'idleDoze',
+        dance: 'idleDance',
+        exercise: 'idleExercise',
+        think: 'idleThink',
+        laugh: 'idleLaugh',
+      };
+      return (idleSub && idleSubPose[idleSub]) || 'idle';
+    }
     case 'anticipation':
     case 'recovery':
     default:
@@ -294,12 +304,17 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
       node.style.transform = '';
       return;
     }
+    // When the active gait's pose is a video-derived clip, its foot-plant
+    // bounce is BAKED into the frames — layering the procedural dip/rock on
+    // top doubles the bounce visibly. The hop arc + lean stay on: they shape
+    // the whole crossing (a path-level concern no in-place cycle can bake).
+    const gaitIsBaked = isAnimatedPose(gait === 'run' ? 'run' : 'walk');
     let rafId = 0;
     let running = false;
     const tick = () => {
       const phase = strideRef.current;
-      const dip = -COMPANION_STRIDE_BOB_PX * Math.abs(Math.sin(Math.PI * phase));
-      const rock = COMPANION_STRIDE_ROCK_DEG * Math.sin(2 * Math.PI * phase);
+      const dip = gaitIsBaked ? 0 : -COMPANION_STRIDE_BOB_PX * Math.abs(Math.sin(Math.PI * phase));
+      const rock = gaitIsBaked ? 0 : COMPANION_STRIDE_ROCK_DEG * Math.sin(2 * Math.PI * phase);
       const { progress, plannedDistancePx, dirX } = walkArcRef.current;
       const apex = Math.min(
         COMPANION_ARC_MAX_PX,
@@ -328,7 +343,7 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
       stop();
       node.style.transform = '';
     };
-  }, [behavior, strideRef, walkArcRef]);
+  }, [behavior, gait, strideRef, walkArcRef]);
 
   // Which edge a peek plays from — decides both the asset (peek vs peekAlt)
   // and its flip. Position is settled by the time 'peeking' starts, so a

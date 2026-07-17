@@ -112,9 +112,16 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 ## 4. Animation clip pipeline (the active workstream)
 
 **Goal**: replace static pose PNGs with fluid video-derived animations, state by
-state. Currently animated: `idle` (6.5s breathing+blink loop) and `idleStretch`
-(2.2s one-shot, loop=1). Everything else still shows its static PNG (that's the
-designed graceful degradation).
+state. **As of 2026-07-17 this is nearly complete** — 15 animated WebPs are
+installed and wired: idle, idleStretch, idleDoze, idleDance, idleExercise,
+idleThink, idleLaugh (the five new ones are Tier-B idle subs routed like
+idleStretch), walk (mirrored at conversion), sit, pointing (talking), peek
+(chroma-keyed, shared by peek+peekAlt), wave, highfive, celebrate, jump
+(asset-only, still no FSM trigger). Still STATIC (rejected clips, regenerate
+seeded): `run` (clip was off-model — not Maska Bhai), `climb` (didn't read as
+climbing). Known cosmetic trade-off: the peek animation's NS badge mirrors at
+the RIGHT screen edge (the static art has the same at the left edge) —
+invisible at 96px.
 
 **How a clip becomes a site animation:**
 
@@ -165,16 +172,15 @@ mapping with the owner if ambiguous.
      if the animated wave has no bubble, decide its facing rule consciously
      and note the decision here.
    - **Duration vs FSM hold** (one-shots): the clip must finish before the FSM
-     crossfades the pose away. Holds: wave/high-five = 1200ms
-     (`COMPANION_ACKNOWLEDGE_MS`), celebrate = 1400ms (`COMPANION_CELEBRATE_MS`),
-     idle subs ≥ 3500ms (that's why the 2.2s idleStretch works). Trim the
-     export window or raise the hold constant — and record which you changed.
-   - **Locomotion double-bob**: `CompanionCharacter`'s `__bob` wrapper applies
-     a procedural distance-synced stride bob tuned for the static walk PNG. An
-     animated walk cycle carries its own baked gait — after wiring, visually
-     check for doubled bounce; if present, gate the procedural bob/rock off for
-     animated locomotion poses (keep the position springs untouched —
-     invariant 1). This path has only been validated on stationary idle states.
+     crossfades the pose away. Holds were ALREADY RAISED for the installed
+     clips: wave/high-five = 2100ms (`COMPANION_ACKNOWLEDGE_MS`, was 1200),
+     celebrate = 2600ms (`COMPANION_CELEBRATE_MS`, was 1400); idle subs
+     ≥ 3500ms. If a regenerated clip runs longer, raise the hold again.
+   - **Locomotion double-bob — SOLVED, keep it working**: `isAnimatedPose()`
+     (exported from AnimatedMascotPlayer) gates the procedural stride dip/rock
+     off when the active gait's pose has a baked clip; the hop arc + lean stay
+     on. If `run` ever gets a clip, this gate covers it automatically — just
+     verify visually once.
    New poses (not in `PoseKey`) follow the idleStretch pattern: `POSES` entry,
    `ANIMATED_SOURCES` entry, routing in `poseForBehavior`.
 5. Verify (see §6), then run the four gates, then commit.
@@ -244,17 +250,25 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
 
 ## 7. Work queue (next session starts here)
 
-1. **Waiting on owner**: the remaining Maska Bhai clips (walk, run, wave, peek,
-   sit, celebrate, etc.). When they arrive → pipeline in §4. Start with `walk`
-   /`run` if available — locomotion is the most visible static-PNG seam.
-2. **idle-look**: regenerate (seeded!) — previous clip unusable (center-spotlight
-   background + identity drift). Then convert with `convert_variants.py`.
-   Wiring: `lookAroundLeft`/`lookAroundRight` already exist in
-   `COMPANION_IDLE_SUBS`; follow the idleStretch pattern (a `PoseKey` +
-   `POSES` entry + `ANIMATED_SOURCES` + routing in `poseForBehavior`).
-3. Consider trimming `mascot-idle-anim.webp` (~924KB, the heaviest asset) if
-   Lighthouse/mobile ever complains — re-encode at q70 or 10fps before touching
-   anything visual.
+1. **Regenerations needed from owner** (seed with the SEED image!):
+   - `run` — the 2026-07-17 clip was off-model (different robot; rejected).
+     Must be an IN-PLACE run cycle. When it lands: `convert_clips.py`, mirror
+     if it faces left (`read_frames(..., flip=True)` pattern in
+     `scripts/out`-era rework script, or flip in the converter), install as
+     `mascot-run-anim.webp`, add the `run:` line in ANIMATED_SOURCES — the
+     double-bob gate then covers it automatically.
+   - `climb` — clip didn't read as climbing (no wall) + bad loop seam;
+     low priority (climb has no FSM trigger anyway).
+   - `idle-look` — still open from before (spotlight background + drift).
+2. **Total animation weight is ~7.8MB** across 15 WebPs. warmUpMascotSources
+   is TIERED now (statics + idle + walk immediately; the rest at browser idle,
+   skipped under Save-Data). If mobile perf complains, next lever: re-encode
+   the heaviest loops (idle 924KB, think 907KB, dance 881KB, doze 827KB) at
+   q70/10fps.
+3. **Idle personality frequency**: 6 of 14 idle subs now play a big animated
+   move (~43% of idle holds). If the owner finds Maska Bhai too hyperactive,
+   rebalance by duplicating calm subs in `COMPANION_IDLE_SUBS` or splitting
+   the pool into weighted tiers.
 4. Standing: keep this file updated at the end of every session.
 
 ## 8. Session log
@@ -266,3 +280,16 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   and skills). Working tree clean; NOT pushed (owner pushes). Rescued the
   conversion scripts into `scripts/`, CDP templates into `scripts/verify/`,
   wrote this handoff file.
+- **2026-07-17 (later)** — THE BIG CLIP BATCH: owner delivered 17 clips; 13
+  accepted and installed (walk, sit, talk→pointing, peek chroma-keyed +
+  mirrored, wave, high-five, celebrate, jump, and five new idle personality
+  subs: doze/dance/exercise/think/laugh). Rejected: run (off-model robot),
+  climb (unclear motion), sit-down (redundant vs sit-idle). New pipeline
+  lessons now baked into the rework scripts: size-limited hole-fill for
+  sparkle-heavy clips (full flood-fill painted background blocks), row-model
+  beats temporal-median when the body is static, window past camera-zoom
+  intros, mirror at read time (`cv2.flip`). Code: 5 new PoseKeys,
+  isAnimatedPose() double-bob gate, tiered preloading (~7.8MB assets),
+  ACKNOWLEDGE_MS 1200→2100, CELEBRATE_MS 1400→2600, idle subs 9→14. All gates
+  green; CDP-verified live: walk/sit/peek/talk/wave/think/doze/stretch/laugh
+  all seen animating on the dev server. NOT pushed.

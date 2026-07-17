@@ -132,6 +132,6 @@ def convert_oneshot(name):
     cv2.imwrite(os.path.join(OUTDIR, f"{name}-preview.png"), cv2.cvtColor(cv2.hconcat(strip), cv2.COLOR_RGB2BGR))
     return out, dur_s
 
-for clip in ["idle-look", "idle-stretch"]:
+for clip in ["wave", "high-five", "celebrates", "sit-down", "jump", "burst laugh"]:
     convert_oneshot(clip)
 print("done")

@@ -59,6 +59,10 @@ export const COMPANION_BEHAVIOR_MAX_MS = 7000; // longest a non-walk behavior ho
 
 // Tier B — which idle SUB-animation plays while behavior === 'idle' itself
 // (see spec §2). Picked uniformly, excluding whichever played last time.
+// Subs with a video-derived animation of their own (stretch, doze, dance,
+// exercise, think, laugh) swap the mascot to that clip for the hold —
+// poseForBehavior in CompanionCharacter.tsx owns that routing. The rest show
+// the base idle loop (which already breathes and blinks).
 export const COMPANION_IDLE_SUBS = [
   'blinking',
   'lookAroundLeft',
@@ -69,6 +73,11 @@ export const COMPANION_IDLE_SUBS = [
   'stretch',
   'yawn',
   'footTap',
+  'doze',
+  'dance',
+  'exercise',
+  'think',
+  'laugh',
 ] as const;
 
 // --- Cursor interaction state machine (see useCompanionCursorEncounter.ts) --
@@ -78,7 +87,9 @@ export const COMPANION_NOTICE_RADIUS = 180; // px — start "noticing" a lingeri
 export const COMPANION_NOTICE_DEBOUNCE_MS = 300; // sustained proximity before noticing
 export const COMPANION_APPROACH_DELAY_MS = 400; // still-nearby-after this -> approach
 export const COMPANION_APPROACH_OFFSET = 60; // px offset from the live cursor point
-export const COMPANION_ACKNOWLEDGE_MS = 1200; // how long the single greet hold lasts before returning to idle
+export const COMPANION_ACKNOWLEDGE_MS = 2100; // how long the single greet hold lasts before returning to idle.
+// 2100 (was 1200): the video-derived wave (2.0s) and high-five (1.8s) one-shots
+// must finish before the hold ends, or the crossfade cuts them mid-gesture.
 export const COMPANION_HIGHFIVE_RADIUS = 90; // px — pointer this close at greet time upgrades the wave to a high-five
 
 // --- Walk FSM timings (see useCompanionBehavior.ts) -------------------------
@@ -117,7 +128,9 @@ export const COMPANION_ARC_MIN_PX = 6; // px — arc apex floor (short hops stil
 export const COMPANION_ARC_MAX_PX = 18; // px — arc apex ceiling (long crossings never balloon)
 export const COMPANION_ARC_LEAN_DEG = 3; // deg — lean INTO the travel direction at mid-arc (airborne read)
 export const COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION = 0.55; // walks longer than this fraction of the viewport width use the run pose
-export const COMPANION_CELEBRATE_MS = 1400; // one-shot celebration hold before returning to idle
+export const COMPANION_CELEBRATE_MS = 2600; // one-shot celebration hold before returning to idle.
+// 2600 (was 1400): the video-derived celebrate one-shot runs 2.5s — the hold
+// must outlive it so the sparkle finale isn't crossfaded away mid-cheer.
 export const COMPANION_TILT_RADIUS_PX = 160; // px — pointer within this makes the mascot "look toward" the cursor
 export const COMPANION_TILT_MAX_ROTATE_Y_DEG = 14; // deg — max pseudo-3D turn toward the cursor (horizontal)
 export const COMPANION_TILT_MAX_ROTATE_X_DEG = 8; // deg — max pseudo-3D pitch toward the cursor (vertical)

@@ -122,6 +122,6 @@ def convert(name):
         strip.append((fr[..., :3].astype(np.float32) * a + bg * (1 - a)).astype(np.uint8))
     cv2.imwrite(os.path.join(OUTDIR, f"{name}-preview.png"), cv2.cvtColor(cv2.hconcat(strip), cv2.COLOR_RGB2BGR))
 
-for clip in ["idle", "idle-look", "idle-stretch"]:
+for clip in ["walk", "run", "sit-idle", "peek", "talk", "sleep", "dance-1", "squat", "thinking", "climb"]:
     convert(clip)
 print("done")
