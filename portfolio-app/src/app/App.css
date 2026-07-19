@@ -640,7 +640,7 @@ a:focus {
 .page-shell {
   flex: 1;
   padding-bottom: 5rem;
-  padding-inline: clamp(1.15rem, 4vw, 3rem);
+  padding-inline: clamp(1rem, 2vw, 1.5rem); /* small edge gutter — content fills near-full-width (was up to 48px, too much) */
 }
 
 @media (max-width: 575px) {
@@ -721,7 +721,9 @@ a:focus {
   transform: perspective(1100px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
   transform-style: preserve-3d;
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-  will-change: transform;
+  /* will-change is set from useTilt.ts only WHILE a card is actively tilting,
+     then released — keeping every card GPU-promoted for the whole page life
+     wastes compositor memory (esp. on mobile). */
 }
 
 [data-tilt]::after {
@@ -860,9 +862,9 @@ h1, h2, h3, h4, h5, h6 {
 
 .main-navbar__container {
   width: 100%;
-  max-width: 1280px;
+  max-width: min(100%, 1760px); /* match the body content width so nav + content share the same edges */
   margin-inline: auto;
-  padding: 0.7rem clamp(0.9rem, 3vw, 2rem);
+  padding: 0.7rem clamp(1.75rem, 2.5vw, 2.25rem); /* inline padding ≈ page-shell gutter + container pad, so nav items align with body content */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1136,7 +1138,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .hero-page .container-xxl {
-  max-width: 1280px;
+  max-width: min(100%, 1760px);
 }
 
 .hero-title {
@@ -1683,6 +1685,15 @@ h1, h2, h3, h4, h5, h6 {
    planted while the body compresses/bounces. */
 .companion__squash,
 .companion__bob {
+  transform-origin: 50% 100%;
+}
+
+/* Perch fit-scale wrapper: bottom-origin so shrinking to fit a tight border
+   keeps the mascot's FEET on the line (scale about the feet, not the center).
+   inset:0 so it fills the container and the scale is about the true bottom. */
+.companion__scale {
+  position: absolute;
+  inset: 0;
   transform-origin: 50% 100%;
 }
 
@@ -2554,7 +2565,10 @@ a.social-btn:focus-visible {
 
 .container,
 .container-xxl {
-  max-width: 1280px;
+  /* Fill the page-shell's inner width (it already supplies a small edge
+     gutter), capped so text lines stay readable on ultrawide. This is what
+     makes body content reach the same edges as the navbar. */
+  max-width: min(100%, 1760px);
 }
 hr {
   color: var(--border);
@@ -2574,8 +2588,15 @@ hr {
   .aurora {
     filter: blur(48px) saturate(150%);
   }
+  /* The full-viewport film-grain (mix-blend-mode: overlay) and the spinning
+     conic-gradient beam are per-frame compositor repaints that are costly on
+     mobile GPUs and imperceptible at phone size — drop both. The aurora glow
+     still carries the ambient look. */
   .grain {
-    animation-duration: 1.2s; /* half the repaint rate; still reads as texture */
+    display: none;
+  }
+  .beam {
+    display: none;
   }
   .main-navbar {
     backdrop-filter: blur(8px) saturate(150%);

@@ -16,7 +16,7 @@
  *   - pointer-events stay off — the mascot can never block a click.
  */
 import { COMPANION_PERCH_TRAVERSE_MIN_PX, COMPANION_PERCH_FOOT_OFFSET_PX } from 'lib/constants';
-import { companionSizeFor, NAVBAR_CLEARANCE, EDGE_INSET } from 'lib/companionConfig';
+import { companionSizeFor, COMPANION_SIZE_FIT_FLOOR, NAVBAR_CLEARANCE, EDGE_INSET } from 'lib/companionConfig';
 import { Point } from 'lib/companionZones';
 
 export type PerchSpan = {
@@ -26,22 +26,71 @@ export type PerchSpan = {
   start: Point;
   /** Right end of the walkable top edge. */
   end: Point;
+  /** The (possibly shrunk-to-fit) VISIBLE size for this element — the mascot
+   * scales to this so he fits a tight border instead of being skipped. The
+   * container box stays full-size; this drives a bottom-origin scale. */
+  size: number;
 };
 
 /** Selectors worth standing on, in priority order. Broad on purpose — the
  * visibility + width filters below do the real gatekeeping. */
 const PERCH_SELECTORS = [
   '.hero-portrait-wrapper', // profile image border (home)
+  '.hero-title', // the big "Hi, I am Naseeruddin Shaik" hero heading (home)
   '.section-title', // section headings (h2)
   '.card', // skill / project / contact cards
 ];
 
-/** The mascot's y when standing ON an element's top border: feet at the
- * border, body above it. The foot offset sinks the container slightly so the
- * feet (which sit above ~8px of transparent crop padding + shadow) visually
- * TOUCH the border instead of hovering over it. */
-function perchY(rect: DOMRect, size: number): number {
-  return rect.top - size + COMPANION_PERCH_FOOT_OFFSET_PX;
+/** How far a text heading's visible glyphs overflow ABOVE its box top (the
+ * font's ascent past the line box). Standing at box-top leaves the feet
+ * floating this far above the letters, so for text targets we lift the perch
+ * by this much to sit feet on the visible letters. Card/image borders ARE the
+ * box top, so they get 0. */
+const TEXT_ASCENT_LIFT_PX = 17;
+
+/** Whether an element's perch line should hug its VISIBLE TEXT top (headings)
+ * rather than its box top (cards, image borders). */
+function isTextTarget(el: Element): boolean {
+  const tag = el.tagName;
+  return (
+    tag === 'H1' ||
+    tag === 'H2' ||
+    tag === 'H3' ||
+    el.classList.contains('hero-title') ||
+    el.classList.contains('section-title')
+  );
+}
+
+/** The mascot's y when standing ON an element's top border. The container box
+ * is ALWAYS full-size (COMPANION_SIZE_DESKTOP) and the visible mascot is
+ * bottom-origin scaled, so its feet always render at the container bottom =
+ * y + fullSize regardless of the fit scale — so y is computed from the full
+ * size, never the shrunk one. The foot offset sinks it so feet TOUCH the
+ * border; for text headings we also lift by the glyph ascent so feet land on
+ * the visible letters, not the box top. */
+function perchY(rect: DOMRect, fullSize: number, textTarget: boolean): number {
+  const lift = textTarget ? TEXT_ASCENT_LIFT_PX : 0;
+  return rect.top - fullSize + COMPANION_PERCH_FOOT_OFFSET_PX - lift;
+}
+
+/** Largest size in [floor, default] at which the mascot fits this element's
+ * walkable top edge (width + navbar clearance), or null if even the floor
+ * won't fit. This is what makes movement never stop: a tight element shrinks
+ * him instead of being skipped. */
+function fitSizeFor(el: Element, viewportWidth: number, viewportHeight: number): number | null {
+  const maxSize = companionSizeFor(viewportWidth); // 132 desktop / 76 mobile
+  const rect = el.getBoundingClientRect();
+  if (rect.left < 0 || rect.right > viewportWidth) return null; // element not fully on-screen horizontally
+  // Fit constraints: walkable width needs TRAVERSE_MIN + size; and the mascot
+  // stands in a FULL-size box above the border, so it needs full clearance
+  // below the navbar and room to render on-screen (both keyed to full size,
+  // since the box height doesn't shrink — only the visible width scales).
+  if (rect.top - maxSize < NAVBAR_CLEARANCE) return null; // no room to stand above the border under the navbar
+  if (rect.top > viewportHeight - maxSize) return null; // top border off-screen / no vertical room
+  const widthFit = rect.width - COMPANION_PERCH_TRAVERSE_MIN_PX; // largest size the width allows
+  const size = Math.min(maxSize, widthFit);
+  if (size < COMPANION_SIZE_FIT_FLOOR) return null; // too narrow even at the floor
+  return Math.floor(size);
 }
 
 /** Which side gutter is the natural on/off ramp for this span. */
@@ -52,7 +101,9 @@ export function perchApproachSide(span: { start: Point; end: Point }, viewportWi
 
 /** The gutter point at the SAME height as the perch — the routed entry/exit
  * ramp. Walking gutter → ramp → border keeps the whole approach along the
- * border's row instead of a diagonal beeline through paragraph text. */
+ * border's row instead of a diagonal beeline through paragraph text. Uses the
+ * FULL container size for the edge inset (the box is full-size; the ramp is a
+ * plain off-element stand at scale 1). */
 export function gutterRampPoint(side: 'left' | 'right', y: number, viewportWidth: number): Point {
   const size = companionSizeFor(viewportWidth);
   return {
@@ -61,42 +112,43 @@ export function gutterRampPoint(side: 'left' | 'right', y: number, viewportWidth
   };
 }
 
-/** Re-measure a perch element into fresh start/end points — called at mission
- * build AND on every scroll while perched, so the mascot tracks the page. */
-export function measurePerchSpan(el: Element, viewportWidth: number): { start: Point; end: Point } {
-  const size = companionSizeFor(viewportWidth);
+/** Re-measure a perch element into fresh start/end points at a given fit size —
+ * called at mission build AND on every scroll while perched. The container box
+ * is full-size; the visible mascot is scaled to `size` and centered in the box
+ * (bottom-center origin), so its visible left edge sits `(full - size)/2` in
+ * from the container's left. We offset x so the VISIBLE feet walk from the
+ * element's left edge to its right edge. y uses the FULL size (feet render at
+ * the container bottom regardless of scale), clamped on-screen. */
+export function measurePerchSpan(
+  el: Element,
+  viewportWidth: number,
+  size: number,
+  viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+): { start: Point; end: Point } {
+  const full = companionSizeFor(viewportWidth);
   const rect = el.getBoundingClientRect();
-  const y = perchY(rect, size);
+  const y = Math.max(NAVBAR_CLEARANCE, Math.min(perchY(rect, full, isTextTarget(el)), viewportHeight - full));
+  const inset = (full - size) / 2; // horizontal margin from the box edge to the scaled mascot
   return {
-    start: { x: rect.left, y },
-    end: { x: rect.right - size, y },
+    start: { x: rect.left - inset, y },
+    end: { x: rect.right - full + inset, y },
   };
 }
 
-/** A perch candidate is usable when its whole body sits inside the viewport
- * (with navbar clearance for the mascot standing on top) and its top edge is
- * wide enough for a walk to actually read as a walk. */
-function isPerchable(el: Element, viewportWidth: number, viewportHeight: number): boolean {
-  const size = companionSizeFor(viewportWidth);
-  const rect = el.getBoundingClientRect();
-  if (rect.width < COMPANION_PERCH_TRAVERSE_MIN_PX + size) return false;
-  if (rect.top - size < NAVBAR_CLEARANCE) return false; // mascot on top must clear the navbar
-  if (rect.bottom > viewportHeight) return false;
-  if (rect.left < 0 || rect.right > viewportWidth) return false;
-  return true;
-}
-
-/** Pick a random perchable element currently on screen, or null. */
+/** Pick a random perchable element on screen, shrinking the mascot to fit a
+ * tight one rather than skipping it (so movement never stops). Null only when
+ * NO element can hold him even at the floor size. */
 export function findPerchTarget(viewportWidth: number, viewportHeight: number): PerchSpan | null {
   if (typeof document === 'undefined') return null;
-  const candidates: Element[] = [];
+  const candidates: { el: Element; size: number }[] = [];
   for (const selector of PERCH_SELECTORS) {
     document.querySelectorAll(selector).forEach((el) => {
-      if (isPerchable(el, viewportWidth, viewportHeight)) candidates.push(el);
+      const size = fitSizeFor(el, viewportWidth, viewportHeight);
+      if (size !== null) candidates.push({ el, size });
     });
   }
   if (!candidates.length) return null;
-  const el = candidates[Math.floor(Math.random() * candidates.length)];
-  const { start, end } = measurePerchSpan(el, viewportWidth);
-  return { el, start, end };
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  const { start, end } = measurePerchSpan(chosen.el, viewportWidth, chosen.size, viewportHeight);
+  return { el: chosen.el, start, end, size: chosen.size };
 }

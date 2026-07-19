@@ -241,6 +241,8 @@ type CompanionCharacterProps = {
   /** Forwarded to the root .companion div so useCompanionBehavior's loop can
    * write the --stride-phase custom property there each frame. */
   rootRef: React.RefObject<HTMLDivElement | null>;
+  /** Visible bottom-origin scale (perch fit-to-element shrink, 1 = full). */
+  perchScaleRef: React.RefObject<number>;
 };
 
 const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
@@ -252,6 +254,7 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
   facing,
   walkArcRef,
   rootRef,
+  perchScaleRef,
 }) => {
   React.useEffect(() => {
     warmUpMascotSources();
@@ -327,6 +330,44 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
   //
   //   A PURELY VISUAL offset on this wrapper — the x/y position springs
   //   alone own ground-truth position and arrival detection.
+  // --- perch fit-scale: the mascot shrinks to fit a tight border (perchScaleRef,
+  // driven by the FSM's perch mission) and grows back to full size otherwise.
+  // Applied as a bottom-origin scale (CSS transform-origin 50% 100%) so his
+  // FEET stay planted on the line while he resizes — resizing the fixed
+  // container box would instead drop the feet. Eased toward the target each
+  // frame so the change reads as "drawing himself up/down to size", not a pop.
+  const scaleRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const node = scaleRef.current;
+    if (!node) return;
+    let rafId = 0;
+    let running = false;
+    let current = perchScaleRef.current ?? 1;
+    const tick = () => {
+      const target = perchScaleRef.current ?? 1;
+      current += (target - current) * 0.18; // critically-damped-ish ease
+      if (Math.abs(target - current) < 0.002) current = target;
+      node.style.transform = `scale(${current.toFixed(3)})`;
+      if (running) rafId = requestAnimationFrame(tick);
+    };
+    const start = () => {
+      if (running) return;
+      running = true;
+      rafId = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(rafId);
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    document.addEventListener('visibilitychange', onVisibility);
+    start();
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
+  }, [perchScaleRef]);
+
   const bobRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const node = bobRef.current;
@@ -391,7 +432,9 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
         <m.div className="companion__squash" variants={SQUASH_VARIANTS} initial="rest" animate={squashStateFor(behavior)}>
           <div className="companion__bob" ref={bobRef}>
             <m.div className="companion__float" variants={FLOAT_VARIANTS} initial={false} animate={floatStateFor(behavior)}>
-              <AnimatedMascotPlayer poseKey={poseKey} facing={facing} staticScaleX={staticScaleX} />
+              <div className="companion__scale" ref={scaleRef}>
+                <AnimatedMascotPlayer poseKey={poseKey} facing={facing} staticScaleX={staticScaleX} />
+              </div>
             </m.div>
           </div>
         </m.div>

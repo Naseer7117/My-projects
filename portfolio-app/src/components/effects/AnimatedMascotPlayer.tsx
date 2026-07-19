@@ -167,7 +167,10 @@ export function resolveMascotSource(poseKey: PoseKey): MascotSource {
 //     simply load on first use, under the 150ms crossfade.
 // video-kind sources are always skipped: they can't warm through Image(),
 // and <video> streams on first mount.
-const TIER_1_POSES: ReadonlySet<PoseKey> = new Set<PoseKey>(['idle', 'walk', 'run']);
+// idle + walk warm eagerly (idle shows immediately, walk is the first gait a
+// stroll uses). run is deferred to Tier 2 — it's never a first move (only long
+// crossings run), so warming it eagerly just races first paint for ~360KB.
+const TIER_1_POSES: ReadonlySet<PoseKey> = new Set<PoseKey>(['idle', 'walk']);
 let sourcesWarmedUp = false;
 export function warmUpMascotSources(): void {
   if (sourcesWarmedUp || typeof window === 'undefined') return;

@@ -60,7 +60,8 @@ type ScanRun = { id: number; variant: IntroVariant; running: boolean };
  * Takes no route prop — route-travel theming is cut, and context beats are
  * wired per-page via CompanionContext, not through this component. */
 const CompanionRoamer: React.FC = () => {
-  const { enabled, behavior, gait, idleSub, x, y, facing, strideRef, walkArcRef, rootRef } = useCompanionBehavior();
+  const { enabled, behavior, gait, idleSub, x, y, facing, strideRef, walkArcRef, rootRef, perchScaleRef } =
+    useCompanionBehavior();
   React.useEffect(() => {
     if (!enabled) return;
     return applyCompanionSizeCssVar(); // returns the resize-listener unsubscribe
@@ -78,6 +79,7 @@ const CompanionRoamer: React.FC = () => {
       strideRef={strideRef}
       walkArcRef={walkArcRef}
       rootRef={rootRef}
+      perchScaleRef={perchScaleRef}
     />
   );
 };

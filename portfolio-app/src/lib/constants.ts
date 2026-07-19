@@ -66,12 +66,12 @@ export const COMPANION_SPRING_MASS = 0.9;
 // 3s exposure the peek sequence spec asks for; waving/highFive cover their
 // 2.0/1.8s one-shots with a settle beat; hopping covers the 1.9s jump.
 export const COMPANION_ARRIVAL_MIN_HOLD_MS: Record<string, number> = {
-  sitting: 5800,
-  sittingCross: 4200,
-  peeking: 3000,
-  waving: 2500,
-  highFive: 2500,
-  hopping: 2400,
+  sitting: 6000, // sit-down transition 5.0s + settle
+  sittingCross: 3500,
+  peeking: 4000, // peek loop ~3.6s — a partial extra hold keeps it readable
+  waving: 3300, // wave one-shot 2.8s + settle
+  highFive: 3100, // high-five 2.6s + settle
+  hopping: 3200, // jump 2.7s + settle
 };
 
 // Tier A ("which named in-place behavior to enter next while idle") no
@@ -131,11 +131,11 @@ export const COMPANION_CLIMB_MIN_VERTICAL_PX = 220; // px — vertical travel be
 export const COMPANION_CLIMB_VERTICAL_RATIO = 1.5; // vertical must exceed horizontal × this
 
 // Sitting is two poses: the stand-to-seated transition one-shot (sitDown,
-// 3.6s), then the seated-idle loop. This is when the renderer swaps them —
-// just before the transition clip's freeze frame, so the crossfade overlaps
-// its settle. COMPANION_ARRIVAL_MIN_HOLD_MS.sitting guarantees every sitting
-// hold outlives this plus a stretch of the loop.
-export const COMPANION_SIT_DOWN_MS = 3400; // ms
+// ~7.0s at the 1.4x clip speed), then the seated-idle loop. Swap just before
+// the transition's freeze frame so the crossfade overlaps its settle.
+// COMPANION_ARRIVAL_MIN_HOLD_MS.sitting (8000) outlives this plus a stretch of
+// the seated loop.
+export const COMPANION_SIT_DOWN_MS = 4700; // ms — let the full sit-down (~5.0s) play before the seated loop
 
 // --- True edge peeking (see the peek mission in useCompanionBehavior) -------
 // The mascot slides most of its container OFF-SCREEN and lets the peek clip's
@@ -145,11 +145,22 @@ export const COMPANION_PEEK_DUCK_NOTICE_PX = 220; // px — cursor this close (o
 export const COMPANION_PEEK_RELOCATE_SETTLE_MS = 350; // ms fully hidden before the invisible relocate
 
 // --- DOM perch missions (see lib/companionPerch.ts) -------------------------
-// Occasionally, instead of a random gutter stroll, the mascot walks onto a
-// real page element (hero portrait border, section heading, card top),
-// traverses its top edge, hops, and hops back down to a legal roam point.
-export const COMPANION_PERCH_CHANCE = 0.35; // probability an idle reschedule becomes a perch mission (when a target is visible)
+// On most idle reschedules the mascot walks onto a real page element (hero
+// portrait border, section heading, card top), traverses its top edge, hops,
+// and returns. This is now the DEFAULT behavior (was 0.35 — too rare, so he
+// mostly drifted through the empty gutter, reading as "walking in the air").
+// Perch / peek / plain-roam are DISJOINT roll windows: [0, PERCH),
+// [PERCH, PERCH+PEEK), [PERCH+PEEK, 1]. A perch roll that finds no on-screen
+// target falls to plain roam, never silently into peek.
+export const COMPANION_PERCH_CHANCE = 0.7; // walk-on-a-border is the default idle stroll
+export const COMPANION_PEEK_CHANCE = 0.15; // true edge peek (disjoint slice above the perch window)
 export const COMPANION_PERCH_TRAVERSE_MIN_PX = 120; // px — skip targets whose walkable top edge is narrower than this
+// Traversing a wide element (e.g. the hero heading) is broken into steps of
+// this many px so he visibly WALKS across the whole thing — a single spring
+// leg over a long span darts across too fast to read. Each step pauses
+// briefly so it reads as walk-stop-walk along the letters.
+export const COMPANION_TRAVERSE_STEP_PX = 170;
+export const COMPANION_TRAVERSE_STEP_HOLD_MS = 550;
 // Feet-planting correction: the clip crops carry ~8px of transparent padding
 // under the feet plus the ground shadow, so standing exactly at
 // (top - size) reads as hovering. Sinking the container this many px makes
@@ -159,7 +170,10 @@ export const COMPANION_PERCH_FOOT_OFFSET_PX = 10;
 // --- Inactivity controller ---------------------------------------------------
 // No pointer/scroll/key/touch input for this long -> the mascot dozes off in
 // place (the doze clip) instead of wandering; any input wakes him.
-export const COMPANION_NAP_AFTER_MS = 28000; // 28s of total silence before sleeping (was 8s — dozed far too eagerly)
+export const COMPANION_NAP_AFTER_MS = 22000; // threshold after which he's ELIGIBLE to doze. Effective sleep is
+// ~22-30s of silence: if a perch mission is in flight at the threshold it
+// finishes first (a few s) so the nap fires at the next idle reschedule; if
+// he's already idle it dozes right at 22s.
 export const COMPANION_NAP_RECHECK_MS = 5000; // while napping, how often to re-check for activity
 // On waking, play a reaction clip (stretch — a natural "just woke up" beat),
 // then stay awake at least this long before he's allowed to nap again, so a
@@ -190,8 +204,8 @@ export const COMPANION_ARC_MIN_PX = 6; // px — arc apex floor (short hops stil
 export const COMPANION_ARC_MAX_PX = 18; // px — arc apex ceiling (long crossings never balloon)
 export const COMPANION_ARC_LEAN_DEG = 3; // deg — lean INTO the travel direction at mid-arc (airborne read)
 export const COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION = 0.55; // walks longer than this fraction of the viewport width use the run pose
-export const COMPANION_CELEBRATE_MS = 2600; // one-shot celebration hold before returning to idle.
-// 2600 (was 1400): the video-derived celebrate one-shot runs 2.5s — the hold
+export const COMPANION_CELEBRATE_MS = 4000; // one-shot celebration hold (clip ~3.5s + settle).
+// 3500: the celebrate one-shot runs ~3.5s after the 1.4x slowdown — the hold
 // must outlive it so the sparkle finale isn't crossfaded away mid-cheer.
 export const COMPANION_TILT_RADIUS_PX = 160; // px — pointer within this makes the mascot "look toward" the cursor
 export const COMPANION_TILT_MAX_ROTATE_Y_DEG = 14; // deg — max pseudo-3D turn toward the cursor (horizontal)

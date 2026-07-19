@@ -4,13 +4,14 @@ import { prefersReducedMotion } from '../../lib/env';
 import {
   randomSafePoint,
   fixedCornerPoint,
+  variedRestPoint,
   hasGutterRoom,
   peekEdgePoint,
   offscreenHidePoint,
   Point,
 } from '../../lib/companionZones';
 import { findPerchTarget, measurePerchSpan, perchApproachSide, gutterRampPoint } from '../../lib/companionPerch';
-import { companionSizeFor } from '../../lib/companionConfig';
+import { companionSizeFor, COMPANION_SIZE_DESKTOP, COMPANION_MOBILE_BREAKPOINT } from '../../lib/companionConfig';
 import {
   COMPANION_BEHAVIOR_MIN_MS,
   COMPANION_BEHAVIOR_MAX_MS,
@@ -30,6 +31,9 @@ import {
   COMPANION_PEEK_DUCK_NOTICE_PX,
   COMPANION_PEEK_RELOCATE_SETTLE_MS,
   COMPANION_PERCH_CHANCE,
+  COMPANION_PEEK_CHANCE,
+  COMPANION_TRAVERSE_STEP_PX,
+  COMPANION_TRAVERSE_STEP_HOLD_MS,
   COMPANION_NAP_AFTER_MS,
   COMPANION_NAP_RECHECK_MS,
   COMPANION_WAKE_REACTION_SUB,
@@ -172,6 +176,9 @@ export type CompanionState = {
    * --stride-phase for any CSS that wants it, without needing a second
    * read path. */
   rootRef: React.RefObject<HTMLDivElement | null>;
+  /** Visible bottom-origin scale (perch fit-to-element shrink, 1 = full size).
+   * A ref so the renderer reads it per-frame without re-rendering. */
+  perchScaleRef: React.RefObject<number>;
   /** Imperatively request a walk-somewhere-and-do-X. Exposed so the two
    * priority-override sources (cursor encounter, context beat) can both
    * drive the SAME FSM rather than each inventing their own transition. */
@@ -187,7 +194,11 @@ function randomHoldMs(): number {
 function pickStandingPoint(): Point {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  return hasGutterRoom(w) ? randomSafePoint(w, h) : fixedCornerPoint(w, h);
+  if (hasGutterRoom(w)) return randomSafePoint(w, h);
+  // No side gutter (near-full-width content). On mobile hold the fixed corner;
+  // on desktop pick a VARIED bottom-band point so he actually moves around
+  // between missions instead of pinning to one corner.
+  return w <= COMPANION_MOBILE_BREAKPOINT ? fixedCornerPoint(w, h) : variedRestPoint(w, h);
 }
 
 // Velocity (px/s) below which we stop updating `facing` — prevents flicker
@@ -284,6 +295,13 @@ export function useCompanionBehavior(): CompanionState {
         anchorAim?: 'start' | 'end';
         /** Surface leg (border/ramp): renderer suppresses the hop arc. */
         onSurface?: boolean;
+        /** Visible scale for this leg (perch fit-to-element shrink, 1 = full). */
+        perchScale?: number;
+        /** The fit SIZE (px) this leg was measured at — re-used by scroll re-anchor. */
+        perchSize?: number;
+        /** Pause (ms) to hold BEFORE starting this leg — spaces out the stepped
+         * traverse so he reads as walk-stop-walk across a wide element. */
+        pauseMs?: number;
       }
     | { kind: 'relocate' };
   const missionRef = useRef<MissionStep[]>([]);
@@ -292,6 +310,13 @@ export function useCompanionBehavior(): CompanionState {
   const missionAnchorRef = useRef<Element | null>(null);
   const missionAnchorAimRef = useRef<'start' | 'end'>('end');
   const suppressArcRef = useRef(false);
+  /** Visible bottom-origin scale for the current leg — read by the renderer
+   * (CompanionCharacter) so the mascot shrinks to fit a tight perch with his
+   * feet staying planted. 1 = full size. */
+  const perchScaleRef = useRef(1);
+  /** The fit size (px) of the active anchored leg — the scroll re-anchor
+   * re-measures the span at this size so start/end x stay correct. */
+  const missionSizeRef = useRef(COMPANION_SIZE_DESKTOP);
 
   /** True from the moment a mission's first step is consumed until the whole
    * queue drains (including the relocate settle, when missionRef is already
@@ -304,6 +329,7 @@ export function useCompanionBehavior(): CompanionState {
     missionRef.current = [];
     missionAnchorRef.current = null;
     suppressArcRef.current = false;
+    perchScaleRef.current = 1; // restore full size on any teardown
     missionActiveRef.current = false;
   }, []);
   /** True only for the synchronous moment a mission step itself calls
@@ -325,9 +351,22 @@ export function useCompanionBehavior(): CompanionState {
       missionAnchorRef.current = step.anchorEl ?? null;
       missionAnchorAimRef.current = step.anchorAim ?? 'end';
       suppressArcRef.current = step.onSurface ?? false;
-      missionStepInFlightRef.current = true;
-      requestWalkRef.current(step.req);
-      missionStepInFlightRef.current = false;
+      perchScaleRef.current = step.perchScale ?? 1;
+      if (step.perchSize) missionSizeRef.current = step.perchSize;
+      const startLeg = () => {
+        missionStepInFlightRef.current = true;
+        requestWalkRef.current(step.req);
+        missionStepInFlightRef.current = false;
+      };
+      if (step.pauseMs && step.pauseMs > 0) {
+        // Hold in place (idle-looking) before this leg, so the stepped
+        // traverse reads as walk-STOP-walk. clearPhaseTimeout on any
+        // pre-emption cancels this pending leg cleanly.
+        setBehavior('idle');
+        phaseTimeoutRef.current = window.setTimeout(startLeg, step.pauseMs);
+      } else {
+        startLeg();
+      }
       return true;
     }
     // 'relocate': the mascot is fully hidden off-screen — the one place an
@@ -354,6 +393,10 @@ export function useCompanionBehavior(): CompanionState {
     fsmPhaseRef.current = 'idle';
     activeWalkRef.current = null;
     if (consumeMissionStep()) return;
+    // Genuine idle (mission fully drained): force full size. Belt-and-braces so
+    // a shrunk perch scale can NEVER leak into a standing/idle/peek pose — the
+    // renderer eases perchScaleRef back to 1 from here.
+    perchScaleRef.current = 1;
     setBehavior('idle');
     setIdleSub(idlePool.pickIdleSub());
     setExpression('neutral');
@@ -593,6 +636,18 @@ export function useCompanionBehavior(): CompanionState {
     };
   }, [enabled, idlePool]);
 
+  /** Idle-hold duration: normally random (4-8s). When the nap threshold will
+   * pass DURING this hold, shorten it so the scheduler re-checks right at that
+   * moment and dozes promptly, instead of a chain of perch missions
+   * overshooting it. Never shorter than 300ms, and only shortens (a hold
+   * already past the threshold keeps its normal length — the nap check in the
+   * scheduler fires this tick anyway). */
+  const idleHoldMs = useCallback((): number => {
+    const untilNapEligible = lastActivityRef.current + COMPANION_NAP_AFTER_MS - Date.now();
+    const hold = randomHoldMs();
+    return untilNapEligible > 300 && untilNapEligible < hold ? untilNapEligible : hold;
+  }, []);
+
   const scheduleIdle = useCallback(() => {
     if (idleTimeoutRef.current !== null) {
       window.clearTimeout(idleTimeoutRef.current);
@@ -621,53 +676,64 @@ export function useCompanionBehavior(): CompanionState {
       }
       nappingRef.current = false;
 
-      const canRoam = hasGutterRoom(w);
       const roll = Math.random();
+      // Perch and peek walk on element top-borders / screen edges, so they
+      // work at ANY content width — they do NOT need a side gutter. Only the
+      // plain-roam fallback below needs a gutter (else the fixed corner).
+      // This is what keeps the mascot moving now that content is near-full-
+      // width and the old side gutters are gone.
+      const perch = findPerchTarget(w, h);
 
-      // PERCH MISSION: routed via the side gutter so no leg ever beelines
-      // through paragraph text — gutter ramp (same row as the border) ->
-      // step onto the border's near end -> traverse the top edge -> hop ->
-      // ramp back off -> settle at a legal roam point. Surface legs suppress
-      // the hop arc so his feet stay planted on the line.
-      // (Desktop-roaming viewports only — on the mobile corner layout the
-      // mascot stays a corner buddy.)
-      if (canRoam && roll < COMPANION_PERCH_CHANCE) {
-        const perch = findPerchTarget(w, h);
-        if (perch) {
-          const side = perchApproachSide(perch, w);
-          const nearEnd = side === 'left' ? perch.start : perch.end;
-          const farEnd = side === 'left' ? perch.end : perch.start;
-          const nearAim = side === 'left' ? 'start' : 'end';
-          const farAim = side === 'left' ? 'end' : 'start';
-          const ramp = gutterRampPoint(side, nearEnd.y, w);
-          missionRef.current = [
-            { kind: 'walk', req: { target: ramp, arrival: 'idle' } },
-            {
-              kind: 'walk',
-              req: { target: nearEnd, arrival: 'idle' },
-              anchorEl: perch.el,
-              anchorAim: nearAim,
-              onSurface: true,
-            },
-            {
-              kind: 'walk',
-              req: { target: farEnd, arrival: 'hopping', expression: 'happy' },
-              anchorEl: perch.el,
-              anchorAim: farAim,
-              onSurface: true,
-            },
-            { kind: 'walk', req: { target: gutterRampPoint(side, nearEnd.y, w), arrival: 'idle' }, onSurface: true },
-            { kind: 'walk', req: { target: pickStandingPoint(), arrival: 'idle' } },
-          ];
-          consumeMissionStep();
-          return;
+      // PERCH MISSION (the default idle stroll when a target is on-screen):
+      // ramp in from the side -> step onto the border's near end -> traverse
+      // the top edge -> hop -> ramp off -> settle. Surface legs suppress the
+      // hop arc so his feet stay planted on the line. A perch roll with NO
+      // target falls straight to plain roam (never to peek).
+      if (perch && roll < COMPANION_PERCH_CHANCE) {
+        const side = perchApproachSide(perch, w);
+        const nearEnd = side === 'left' ? perch.start : perch.end;
+        const farEnd = side === 'left' ? perch.end : perch.start;
+        const nearAim = side === 'left' ? 'start' : 'end';
+        const farAim = side === 'left' ? 'end' : 'start';
+        const ramp = gutterRampPoint(side, nearEnd.y, w);
+        const scale = perch.size / COMPANION_SIZE_DESKTOP; // 1 when he fits full-size, <1 when shrunk to a tight border
+
+        // Traverse the top edge in STEPS so a wide element (like the hero
+        // heading) reads as him actually WALKING across the whole thing at a
+        // steady pace — a single spring leg over a long span darts across too
+        // fast to see. Each step is ~COMPANION_TRAVERSE_STEP_PX of real travel
+        // with a short pause, so he walk-stops-walks along the letters. Only
+        // the first (near) and last (far) legs re-anchor to the live element
+        // ends; intermediate steps are fixed points (the traverse is brief).
+        const span = Math.abs(farEnd.x - nearEnd.x);
+        const steps = Math.max(1, Math.round(span / COMPANION_TRAVERSE_STEP_PX));
+        const surfaceLegs: MissionStep[] = [
+          { kind: 'walk', req: { target: nearEnd, arrival: 'idle' }, anchorEl: perch.el, anchorAim: nearAim, onSurface: true, perchScale: scale, perchSize: perch.size },
+        ];
+        for (let s = 1; s < steps; s++) {
+          const t = s / steps;
+          const mid: Point = { x: nearEnd.x + (farEnd.x - nearEnd.x) * t, y: nearEnd.y + (farEnd.y - nearEnd.y) * t };
+          // pauseMs makes him stop briefly BEFORE each step — walk, stop, walk
+          // across the letters instead of one fast dart.
+          surfaceLegs.push({ kind: 'walk', req: { target: mid, arrival: 'idle' }, onSurface: true, perchScale: scale, perchSize: perch.size, pauseMs: COMPANION_TRAVERSE_STEP_HOLD_MS });
         }
+        surfaceLegs.push({ kind: 'walk', req: { target: farEnd, arrival: 'hopping', expression: 'happy' }, anchorEl: perch.el, anchorAim: farAim, onSurface: true, perchScale: scale, perchSize: perch.size });
+
+        missionRef.current = [
+          { kind: 'walk', req: { target: ramp, arrival: 'idle' } },
+          ...surfaceLegs,
+          { kind: 'walk', req: { target: gutterRampPoint(side, nearEnd.y, w), arrival: 'idle' }, onSurface: true },
+          { kind: 'walk', req: { target: pickStandingPoint(), arrival: 'idle' } },
+        ];
+        consumeMissionStep();
+        return;
       }
 
-      // TRUE EDGE PEEK MISSION: slide mostly off-screen, let the peek clip's
-      // lean-out do the reveal, then duck fully away and (invisibly)
-      // relocate — it re-emerges somewhere else entirely.
-      if (canRoam && roll < COMPANION_PERCH_CHANCE + 0.18) {
+      // TRUE EDGE PEEK MISSION: a DISJOINT slice ABOVE the perch window, so a
+      // perch roll can never collapse into a peek. Slide mostly off-screen,
+      // let the peek clip's lean-out do the reveal, duck away, then invisibly
+      // relocate to re-emerge elsewhere.
+      if (roll >= COMPANION_PERCH_CHANCE && roll < COMPANION_PERCH_CHANCE + COMPANION_PEEK_CHANCE) {
         const peekAt = peekEdgePoint(w, h, COMPANION_PEEK_EXPOSURE);
         missionRef.current = [
           { kind: 'walk', req: { target: peekAt, arrival: 'peeking', expression: 'surprised' } },
@@ -678,10 +744,11 @@ export function useCompanionBehavior(): CompanionState {
         return;
       }
 
-      const target = canRoam ? pickStandingPoint() : fixedCornerPoint(w, h);
-      requestWalk({ target, arrival: 'idle' });
-    }, randomHoldMs());
-  }, [requestWalk, consumeMissionStep]);
+      // pickStandingPoint handles both cases (gutter roam, or varied bottom-band
+      // rest with no gutter), so this plain-roam fallback covers all widths.
+      requestWalk({ target: pickStandingPoint(), arrival: 'idle' });
+    }, idleHoldMs());
+  }, [requestWalk, consumeMissionStep, idleHoldMs]);
 
   useEffect(() => {
     scheduleIdleRef.current = scheduleIdle;
@@ -723,7 +790,7 @@ export function useCompanionBehavior(): CompanionState {
       if (!el) return;
       const phase = fsmPhaseRef.current;
       if (phase !== 'walking' && phase !== 'arrived' && phase !== 'anticipation') return;
-      const span = measurePerchSpan(el, window.innerWidth);
+      const span = measurePerchSpan(el, window.innerWidth, missionSizeRef.current);
       const aim = missionAnchorAimRef.current === 'start' ? span.start : span.end;
       if (activeWalkRef.current) activeWalkRef.current.target = aim;
       targetX.set(aim.x);
@@ -847,6 +914,7 @@ export function useCompanionBehavior(): CompanionState {
       strideRef,
       walkArcRef,
       rootRef,
+      perchScaleRef,
       requestWalk,
     }),
     [enabled, behavior, idleSub, expression, gait, x, y, facing, requestWalk]

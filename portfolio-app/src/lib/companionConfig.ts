@@ -19,14 +19,15 @@ export const CONTENT_MAX_WIDTH = 1280; // must match .container/.container-xxl m
 export const NAVBAR_CLEARANCE = 84; // px — stay below the sticky navbar
 export const EDGE_INSET = 16; // px — never touch the very edge
 
-// 96px (user asked for a bigger mascot; was 80, before that 72 for the old
-// SVG rig). Trade-off, documented: minViewportForGutterRoaming() becomes
-// 1280 + (16*2 + 96) * 2 = 1536 exactly — so 1536-wide laptops KEEP gutter
-// roaming (>= check), but 1512-wide MacBook-class viewports now fall back
-// to the fixed corner pocket (still animated/alive, just not roaming).
-// Going bigger than 96 would also cost 1536 screens their roaming.
-export const COMPANION_SIZE_DESKTOP = 96; // px
-export const COMPANION_SIZE_MOBILE = 64; // px
+// 132px — big by default (user wants him large and clearly "among" the
+// content). When a perch target is too tight for 132, the mission shrinks him
+// to fit down to COMPANION_SIZE_FIT_FLOOR instead of skipping the element, so
+// movement never stops. The shrink is a bottom-origin SCALE on an inner
+// wrapper (CompanionCharacter) — the container box never resizes, so feet
+// stay pinned to the baseline (resizing the fixed box would drop the feet).
+export const COMPANION_SIZE_DESKTOP = 132; // px — default/full size
+export const COMPANION_SIZE_FIT_FLOOR = 88; // px — smallest he'll shrink to, to fit a tight perch
+export const COMPANION_SIZE_MOBILE = 76; // px
 export const COMPANION_MOBILE_BREAKPOINT = 767; // px — matches App.css's max-width: 767px companion block
 
 export function companionSizeFor(viewportWidth: number): number {

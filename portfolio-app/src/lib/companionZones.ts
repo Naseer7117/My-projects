@@ -26,8 +26,20 @@ import {
   companionSizeFor,
   minViewportForGutterRoaming,
 } from './companionConfig';
+import { COMPANION_PERCH_FOOT_OFFSET_PX } from './constants';
 
 export type Point = { x: number; y: number };
+
+/** Container-top y so the mascot's VISIBLE feet sit ON the very bottom edge of
+ * the viewport (the browser bottom / taskbar line), not floating above it.
+ * Feet render ~FOOT_OFFSET below the container bottom (the clip carries a few
+ * px of transparent padding + shadow under the feet), so we push the container
+ * down past `viewportHeight - size` by that offset — the same crop-padding
+ * compensation the perch code uses. Clamped so it never rises above the navbar
+ * on very short viewports. */
+export function bottomStandY(viewportHeight: number, size: number): number {
+  return Math.max(NAVBAR_CLEARANCE, viewportHeight - size + COMPANION_PERCH_FOOT_OFFSET_PX);
+}
 
 /** True when this viewport is wide enough to have a real, content-free side gutter. */
 export function hasGutterRoom(viewportWidth: number): boolean {
@@ -68,8 +80,26 @@ export function fixedCornerPoint(viewportWidth: number, viewportHeight: number):
   const size = companionSizeFor(viewportWidth);
   return {
     x: Math.max(EDGE_INSET, viewportWidth - EDGE_INSET - size),
-    y: Math.max(NAVBAR_CLEARANCE, viewportHeight - EDGE_INSET - size),
+    y: bottomStandY(viewportHeight, size), // feet ON the bottom edge, not floating above it
   };
+}
+
+/**
+ * A VARIED resting point for no-gutter viewports (content is near-full-width,
+ * so there's no side gutter to roam). Instead of always snapping to the one
+ * fixed corner — which read as "not moving around" — pick a random x along
+ * the bottom edge band (below the fold of typical content, near the viewport
+ * bottom where there's whitespace) OR either bottom corner. This gives the
+ * mascot genuine positional variety between his perch/peek missions without
+ * risking sitting on body text (the bottom band is the safe strip). Desktop
+ * only; on the mobile breakpoint the caller keeps the fixed corner.
+ */
+export function variedRestPoint(viewportWidth: number, viewportHeight: number): Point {
+  const size = companionSizeFor(viewportWidth);
+  const y = bottomStandY(viewportHeight, size); // feet ON the bottom edge, not floating above it
+  const usable = Math.max(0, viewportWidth - EDGE_INSET * 2 - size);
+  const x = EDGE_INSET + Math.random() * usable;
+  return { x, y };
 }
 
 /** TRUE edge peek: most of the container hangs OFF-SCREEN and only

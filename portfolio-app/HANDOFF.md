@@ -7,7 +7,13 @@
 >
 > **Protocol: at the end of every working session, UPDATE this file** — refresh
 > "Current state", append to the "Session log", and keep the work queue honest.
-> That update is what makes the next session seamless. Keep it committed.
+> That update is what makes the next session seamless.
+>
+> **Also keep `README.md` current** (the human-facing overview) whenever
+> structure or features change — it points here for depth, don't duplicate.
+> **Use the ponytail skill for new implementation** (laziest thing that works).
+> **Do NOT git commit** — the owner commits manually with their own messages;
+> leave the working tree ready and verified.
 
 ---
 
@@ -68,10 +74,11 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 
 | Layer | File | Owns |
 |---|---|---|
-| Sizes/layout constants | `src/lib/companionConfig.ts` | THE single source of truth: desktop **96px**, mobile **64px**, breakpoint 767, `EDGE_INSET` 16, `NAVBAR_CLEARANCE` 84, `CONTENT_MAX_WIDTH` 1280. `applyCompanionSizeCssVar()` syncs `--companion-size` to CSS at app start. |
-| Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1536px**), `fixedCornerPoint` (mobile bottom-right pocket), `peekEdgePoint(exposure)` (TRUE edge peek — container mostly off-screen), `offscreenHidePoint` (duck-away target), `targetedAnchorPoint` (context beats). Structural guarantee: outside the 1280px content column is empty background on every page. |
-| DOM perching | `src/lib/companionPerch.ts` | Finds perchable elements (hero portrait, `.section-title`, `.card`) that are fully in-viewport and wide enough, and measures their top border into mascot coordinates (`measurePerchSpan` re-runs on scroll so the mascot stays glued). Deliberately relaxes gutter-only roaming (owner request) — the mascot stands ABOVE elements, never on their content. |
-| The FSM | `src/hooks/interactions/useCompanionBehavior.ts` | idle → anticipation (220ms) → walking → **measured arrival** (dist < 6px AND speed < 30px/s for 2 consecutive frames — NEVER a timer) → recovery (260ms) → arrival action (sit/peek/wave/highFive) or idle. Position = `useSpring` (stiffness 120, damping 14, mass 0.8). Facing from x-velocity with 40px/s deadzone. Distance-synced stride: real px accumulate, 46px per cycle, written to `strideRef` + `--stride-phase`. Priority: talking handoff > everything (snaps, no walk); celebration only fires when parked. |
+| Sizes/layout constants | `src/lib/companionConfig.ts` | THE single source of truth: desktop **132px** (default/full), mobile **76px**, `COMPANION_SIZE_FIT_FLOOR` **88px** (perch shrink floor), breakpoint 767, `EDGE_INSET` 16, `NAVBAR_CLEARANCE` 84, `CONTENT_MAX_WIDTH` 1280. `applyCompanionSizeCssVar()` syncs the RESTING `--companion-size`. |
+| Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1872px** at 132px), `fixedCornerPoint`, **`variedRestPoint`** (no-gutter desktop rest picks a varied x along the bottom band so he actually roams, not corner-pinned), **`bottomStandY(vh,size)`** (= `vh − size + FOOT_OFFSET`, so bottom rests put his VISIBLE feet ON the viewport bottom edge, not floating above), `peekEdgePoint(exposure)`, `offscreenHidePoint`, `targetedAnchorPoint`. **Content is near-full-width — `.page-shell` `padding-inline: clamp(1rem,2vw,1.5rem)` + `.container`/`.container-xxl` `max-width: min(100%, 1760px)`, navbar matches; side margins ~36px (was ~120px). Old empty side gutters are gone — he roams by PERCHING.** Perch/peek are NOT gutter-gated; only plain-roam falls back to gutter (≥1872px) or bottom-band/corner. |
+| DOM perching (primary roam) | `src/lib/companionPerch.ts` | `PERCH_SELECTORS` = `.hero-portrait-wrapper`, `.hero-title` (the big "Hi, I am…" H1), `.section-title`, `.card`. `fitSizeFor(el)` returns the largest size in [88, 132] that fits an element's top border, or null only if even 88 fails — a tight card SHRINKS him instead of being skipped (movement never stops). `findPerchTarget` returns `{el,start,end,size}`; `measurePerchSpan(el, vw, size, vh)` uses `size` for the x-span, FULL size for y. **Text headings (`isTextTarget`: H1/H2/H3/.hero-title/.section-title) get a `TEXT_ASCENT_LIFT_PX` (17) lift** so feet land on the visible letters, not the box top (glyphs overflow ~17px above the box). Stands ABOVE elements, never on content. |
+| Perch fit-scale | `CompanionCharacter` `.companion__scale` + `perchScaleRef` | The shrink is a **bottom-origin CSS `scale` on `.companion__scale`** (transform-origin 50% 100%), eased per-frame toward `perchScaleRef.current` (= `fitSize/132`, set on the perch mission's surface legs). Bottom-origin = **feet stay planted** while he resizes; the container box never changes (resizing a `position:fixed` box drops the feet). **Reset to 1 in `clearMission` AND in `enterIdle` when the mission drains** — so a shrunk scale can NEVER leak into a standing/idle/peek pose (that leak was a real bug). |
+| The FSM | `src/hooks/interactions/useCompanionBehavior.ts` | idle → anticipation (220ms) → walking → **measured arrival** (dist < 6px AND speed < 30px/s for 2 consecutive frames — NEVER a timer) → recovery (260ms) → arrival action (sit/peek/wave/highFive/hopping) or idle. Position = `useSpring` (**stiffness 70, damping 17, mass 0.9** — softened for calmer travel). Facing from x-velocity, 40px/s deadzone. **MISSIONS** (perch, peek) are step queues that ride the walk FSM (`missionRef`; `consumeMissionStep`; external callers cancel via `clearMission`). A **stepped traverse** walks a wide element in `COMPANION_TRAVERSE_STEP_PX` (170) segments with a `pauseMs` (550) hold before each (`walk-stop-walk`, not one dart). **Idle scheduler**: nap (doze) if no input > `COMPANION_NAP_AFTER_MS` (22s, +60s post-wake lockout, wake plays 'stretch'); else roll perch (0.7) / peek (0.15 disjoint slice) / plain roam. Priority: talking handoff snaps > everything; celebration only when parked. |
 | Idle variety | `src/hooks/interactions/useCompanionIdlePool.ts` | "Tier-B" idle subs = micro-behaviors WITHIN the idle state (`COMPANION_IDLE_SUBS`, 10 entries, 7 with their own clip). Picked from a **fair SHUFFLE BAG** — every sub plays once per pass before any repeat, reshuffle guards the seam against a back-to-back repeat. `peekSpecific()` lets the nap controller force 'doze'/'stretch'. (No Tier-A system — sit/peek are walk arrival actions only.) |
 | Per-page beats | `src/hooks/interactions/useCompanionContextBeat.ts` | One walk-to-element beat per route landing: Home→peek at hero portrait (left side, enabled only while narration is NOT playing — the talking handoff outranks it), About→sit at timeline, Skills/Projects→peek at first card, Contact→sit at card. |
 | Cursor encounter | `src/hooks/interactions/useCompanionCursorEncounter.ts` | notice (<180px, 300ms) → walk over → wave (or high-five if <90px) → dormant. Fine-pointer devices only. |
@@ -79,7 +86,8 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 | Container physics | `src/components/effects/CompanionCharacter.tsx` | Wrapper chain `.companion > __stage (cursor tilt) > __squash (stiffness 200/damping 10, deliberately underdamped) > __bob (stride bob −4px·\|sin(π·phase)\| + rock 2° + hop arc) > __float (breathe/drift) > player`. Feet-anchored `transform-origin: 50% 100%`. |
 | Asset layer | `src/components/effects/AnimatedMascotPlayer.tsx` | `POSES` — a single webp-only table (src, `nativeFacing`, `facingMode`, kind 'img'\|'video'); 200ms AnimatePresence crossfade; two-tier preloading (idle+walk+run immediate, rest at browser idle, skipped under Save-Data). **Adding/replacing a state: run the new clip through `scripts/normalize_clips.py` FIRST (see size-lock note), drop the output in `public/assets/mascot/`, add its `POSES` line.** |
 | Clip size lock | `scripts/normalize_clips.py` | Every clip is pre-normalized to ONE canvas aspect (260×360 = 0.722) with the robot's HEAD at a uniform size (head-width invariant — pose-stable, unlike bbox height) and feet/contact on a fixed baseline. The CSS pose box is then a fixed `object-fit: contain; object-position: bottom center` box sized from `--companion-pose-aspect`, so clips can't shrink/grow on swap. Peek is excluded from head-normalization (authored partly off-edge). **Any new clip MUST go through this or it will resize the mascot.** |
-| CSS | `src/app/App.css` | `.companion` block (~line 1658), mobile overrides (~line 2578), and the mobile footer reservation (~line 663). |
+| Clip playback speed | `scripts/slow_clips.py` | Clips play at their **native ~9fps (116ms/frame)** — the earlier 1.4× slowdown was undone (looked too slow/choppy). `slow_clips.py <factor>` multiplies frame durations and **COMPOUNDS** (each run again), so to change speed compute the factor from the CURRENT speed. ⚠️ Pillow CANNOT read WebP frame durations back (returns None) — the script reads them from the raw WebP ANMF bytes. **Re-running normalize_clips.py resets speed to native — re-apply any slowdown after a re-normalize.** FSM one-shot holds (COMPANION_ARRIVAL_MIN_HOLD_MS, COMPANION_CELEBRATE_MS, COMPANION_SIT_DOWN_MS) are sized to the native durations. |
+| CSS | `src/app/App.css` | `.companion` block, `.companion__scale` (bottom-origin perch scale), mobile overrides, mobile footer reservation. **Mobile perf** (≤767px): `.grain` (mix-blend overlay) and `.beam` (spinning conic-gradient) are `display:none` — costly per-frame GPU repaints, imperceptible on phones. `[data-tilt]` `will-change:transform` is set from `useTilt.ts` only WHILE tilting (was leaked page-life). Fonts load non-render-blocking (`index.html` `media=print`/onload swap). |
 
 ### DO-NOT-BREAK invariants (each was a real bug)
 
@@ -107,8 +115,10 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
    text-free.
 7. **Size changes**: touch `companionConfig.ts` AND the hand-synced CSS spots
    (fallbacks in `.companion`, mobile `--companion-size`, footer calc). Current
-   96px is the ceiling before 1536-wide laptops lose gutter roaming
-   (threshold formula: `1280 + (16·2 + size)·2`).
+   default is **132px** (fit-shrinks to an 88px floor on tight perches). At
+   132px gutter-roaming needs ≥1872px viewport (formula `1280 + (16·2 + size)·2`),
+   so most laptops roam by PERCHING not gutters — that's fine, perch needs no
+   gutter. Going bigger widens the shrink range and the roam threshold.
 8. **Respect the `POSES` table's facing rules**: frontal/direction-agnostic
    poses (incl. climb) are `facingMode: 'fixed'`; peeks are edge-driven and
    authored right-edge-native; locomotion clips are authored facing RIGHT
@@ -117,6 +127,14 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
    `prefers-reduced-motion` and the FSM's `enabled` is false — keep both.
 
 ## 4. Animation clip pipeline (the active workstream)
+
+**SOURCE CLIPS ARE BACKED UP IN THE REPO:** the raw AI-generated `.mp4`
+masters + `SEED-use-this-image-for-all-clips.png` live in **`assets-src/maska
+bhai/`** (root, NOT `public/` — so they travel with every `git clone` but are
+NOT bundled into the deploy). See that folder's README.txt. The site loads only
+the processed WebPs in `public/assets/mascot/`. To add/replace a clip: drop the
+new `.mp4` in `assets-src/maska bhai/`, run the pipeline below, output lands in
+`public/assets/mascot/`.
 
 **COMPLETE as of 2026-07-17: the mascot is 100% video-derived.** The static
 PNG pose-swapping layer is fully retired — the 12 PNGs are deleted, `POSES`
@@ -133,7 +151,7 @@ COMPANION_SIT_DOWN_MS=3400ms in CompanionCharacter). The procedural stride
 bob/rock is REMOVED (baked gaits own their bounce; only the hop arc remains,
 and climb gets no offsets at all). Known cosmetic trade-off: locomotion/peek
 clips show a mirrored NS badge in one direction/edge — inherent to
-single-orientation art, invisible at 96px.
+single-orientation art, barely noticeable at the mascot's size.
 
 **How a clip becomes a site animation:**
 
@@ -262,40 +280,39 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
 
 ## 7. Work queue (next session starts here)
 
-1. **Optional regenerations** (seed with the SEED image!):
-   - `idle-look` — still open (old clip: spotlight background + identity
-     drift). Wiring is ready: `lookAroundLeft`/`lookAroundRight` subs exist;
-     follow the idleStretch pattern.
-   - `run` — SHIPPED but the clip is slightly off-model (flatter visor than
-     the seed). Works at 96px; regenerate only if the owner wants it perfect.
-     Replacing = convert mirrored (`flip=True`), overwrite
-     `mascot-run-anim.webp`, done — no code change.
-2. **Total animation weight is ~9.9MB** across 18 WebPs (grew from ~8.8MB when
-   normalize_clips.py re-encoded at LANCZOS/method 5). warmUpMascotSources is
-   TIERED (idle+walk+run immediately; the rest at browser idle, skipped under
-   Save-Data), so first paint is unaffected — but this is the biggest
-   outstanding perf lever. If mobile complains: re-encode the heaviest loops
-   (idle ~1.08MB, doze ~937KB, think ~933KB, dance ~1MB) at q70/10fps INSIDE
-   normalize_clips.py (change its quality/method), so the size lock is
-   preserved.
-3. **Idle personality frequency**: 6 of 14 idle subs now play a big animated
-   move (~43% of idle holds). If the owner finds Maska Bhai too hyperactive,
-   rebalance by duplicating calm subs in `COMPANION_IDLE_SUBS` or splitting
-   the pool into weighted tiers.
-4. **Deferred review items** (from the 2026-07-17 pre-test review — each is a
-   real confirmed finding held back because it touches load-bearing code and
-   deserves its own verified pass, NOT a batch edit): (a) two independent
-   per-walk rAF loops (FSM loop in useCompanionBehavior + bob/arc loop in
-   CompanionCharacter) — fold into one; (b) the walk rAF loop never
-   self-suspends between walks — cancelAnimationFrame when leaving 'walking'
-   for battery; (c) useCompanionCursorEncounter re-subscribes its pointermove
-   listener on every reducer state change (`state` in deps) — move phase to a
-   ref; (d) talking overloads `fsmPhase='idle'` while behavior='talking' —
-   give it a real 'parked' phase so isIdleNow() is honest; (e) `sittingCross`
-   is fully wired (union, hold, pose, breathing set) but no caller ever emits
-   it — remove or wire; (f) asset re-encode (see item 2). All are risk/perf/
-   polish, none block testing.
-5. Standing: keep this file updated at the end of every session.
+**Biggest open win — RE-ENCODE THE MASCOT CLIPS (owner's call, awaits go-ahead).**
+`public/assets/mascot/` = **~9.6MB** across 18 WebPs, the dominant payload and
+the #1 mobile-load lever. The clips are 260×360 but display ~76–132px, so they
+oversample 2–4×. A background test (see prior session) confirmed:
+- 230px / q68 → **~5.3MB** (−45%, full retina crispness), or
+- 160px / q65 / 8fps → **~3.3MB** (−65%, still no visible loss at ≤132px).
+Do it INSIDE `scripts/normalize_clips.py` (lower CANVAS_H / quality) so the
+size-lock + head-normalization are preserved. **MUST re-apply native speed
+after** (re-normalize resets to 1×; note Pillow can't read WebP durations —
+read them from raw ANMF bytes). Verify quality visually per clip before keeping.
+Related: gate mobile clip warmup to only the clips the corner buddy plays.
+
+**Also open:**
+1. **Optional regenerations** (seed with `SEED-use-this-image-for-all-clips.png`):
+   `idle-look` (old clip unusable — spotlight bg + drift; wiring ready, follow
+   idleStretch pattern); `run` (shipped but slightly off-model — replace by
+   overwriting `mascot-run-anim.webp`, no code change).
+2. **~10MB unreferenced AI-Portrait PNGs in `public/images/`** ship in every
+   deploy but nothing loads them — move out of `public/` (repo/deploy cleanup,
+   not a render win; they're the owner's source files, so move don't delete).
+3. **Deferred code-quality items** (real, held back to avoid rushing
+   load-bearing code — each deserves its own verified pass): fold the two
+   per-walk rAF loops (FSM + CompanionCharacter bob/arc) into one; suspend the
+   walk rAF loop when idle (battery); `useCompanionCursorEncounter` re-subscribes
+   its pointermove on every reducer state change (move phase to a ref); talking
+   overloads `fsmPhase='idle'` (give it a real 'parked' phase); `sittingCross`
+   is fully wired but never emitted (remove or wire).
+4. **Tuning knobs** (all in `constants.ts`, if behavior feels off): perch
+   frequency `COMPANION_PERCH_CHANCE` (0.7); traverse pace
+   `COMPANION_TRAVERSE_STEP_PX` (170) / `_HOLD_MS` (550); nap timing
+   `COMPANION_NAP_AFTER_MS` (22s); idle-sub mix `COMPANION_IDLE_SUBS` (10
+   entries, 7 with a clip — duplicate calm subs if he feels too hyperactive).
+5. Standing: keep this file AND README.md updated at the end of every session.
 
 ## 8. Session log
 
@@ -405,3 +422,91 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
   wake plays a 'stretch' reaction (COMPANION_WAKE_REACTION_SUB via
   idlePool.peekSpecific). All gates green; CDP-verified: dozed at 33s (not
   early), woke into stretch; size band tight across 8 poses. NOT pushed.
+- **2026-07-17 (size/width/fit + full re-verify)** — Content widened to
+  `min(90%, 1760px)` on all pages (side gutters mostly gone). Mascot bumped to
+  **132px default** with **dynamic fit-shrink** (COMPANION_SIZE_FIT_FLOOR 88):
+  `fitSizeFor` in companionPerch shrinks him to fit a tight border instead of
+  skipping it (movement never stops), rendered as a **bottom-origin CSS scale**
+  on `.companion__scale` via `perchScaleRef` — feet stay planted (resizing the
+  fixed box would drop them). Perch decoupled from `hasGutterRoom` (walks on
+  element tops, needs no gutter) so he roams via perching at any width. Clips
+  confirmed at **1.4× (162ms/frame)**; one-shot FSM holds re-tuned to match
+  (wave 4.4 / highFive 4.2 / celebrate 5.2 / sitDown swap 6.6 / sitting 8.0s).
+  Nap threshold 28→**22s** eligibility (effective sleep ~22-34s: a perch
+  mission in flight finishes first with the slower walk clip); `idleHoldMs`
+  caps the idle hold so the nap check lands promptly. FULL re-verify: all 4
+  gates green; CDP — content 83% wide on all 5 pages; mascot 132px, shrinks to
+  0.96 on narrow cards, feet at 10px at every size; 78 border-frames/50s (walks
+  on content); peek ZERO green (2 samples); sleep + stretch-wake; mobile 64px
+  zero text-overlap; reduced-motion hides him. NOT pushed.
+- **2026-07-19 (roam-variety + perf pass)** — FIXED: mascot appeared "not
+  moving" on laptop/1440 screens — his between-mission REST always snapped to
+  the one fixed corner (no side gutter at 132px). Added `variedRestPoint`
+  (companionZones) — desktop no-gutter rest now picks a varied bottom-band x,
+  so idle positions spread across the page (verified 5 distinct x's vs 1
+  before); mobile keeps the fixed corner. Clip speed normalized back to native
+  ~9fps (116ms/frame; the 1.4× slow looked choppy) and one-shot FSM holds
+  re-tuned to the faster clips. PERF (verified audit, safe wins applied): mobile
+  now `display:none` on `.grain` (mix-blend overlay repaint) and `.beam`
+  (spinning conic-gradient) — both imperceptible at phone size, costly on
+  mobile GPUs; `[data-tilt]` `will-change:transform` moved out of base CSS into
+  useTilt (promote on enter, release on leave — was leaked page-life); Tier-1
+  mascot warm trimmed idle+walk only (run deferred, never a first gait);
+  Google Fonts stylesheet made non-render-blocking (media=print/onload swap).
+  Content-width fix from the prior turn also in (page-shell padding + container
+  min(100%,1760px) so text reaches the borders). All gates green; CDP-verified
+  mobile/desktop FX gating + roam variety. NOT pushed.
+  DEFERRED for owner (both real, both bigger calls): (1) re-encode the 18
+  mascot clips at lower res/quality — audit's Pillow tests show ~9.6MB→~3.3MB
+  with no visible loss at 132px; must PRESERVE native speed (re-normalize
+  resets it) — biggest single mobile-load win. (2) gate mobile clip warmup to
+  only the clips the corner buddy actually plays (idle/walk/run/jump/peek +
+  idle-subs), deferring wave/highfive/celebrate/pointing/sit/climb — one
+  ~10-line guard in warmUpMascotSources. Also: ~10MB unreferenced AI-Portrait
+  PNGs in public/images/ ship in every deploy (move out of public/ — repo/deploy
+  cleanup, not a render win).
+- **2026-07-19 (walk on the hero heading)** — Added `.hero-title` (the big
+  "Hi, I am Naseeruddin Shaik" H1) to PERCH_SELECTORS so the mascot walks on it
+  too. Fixed a text-perch gap: a heading's glyphs overflow ~17px ABOVE its box
+  top (font ascent), so standing at box-top left the feet floating above the
+  letters. companionPerch now lifts the perch line by TEXT_ASCENT_LIFT_PX (17)
+  for text targets (isTextTarget: H1/H2/H3/.hero-title/.section-title) so feet
+  land ON the letters — verified feet-to-text gap 17px→5px. Cards/image borders
+  (box top IS the visible edge) get 0 lift. Gates green; movement + perch
+  re-verified. NOT pushed.
+- **2026-07-19 (stepped hero traverse)** — Fixed the mascot darting across the
+  hero heading in one fast slide ("too fast, only one movement, not walking the
+  whole words"). A perch traverse over a WIDE element was a single spring leg
+  from near-end to far-end — over ~740px that reads as one dart. Now the
+  traverse is split into steps of COMPANION_TRAVERSE_STEP_PX (170) with a
+  COMPANION_TRAVERSE_STEP_HOLD_MS (550) pause before each, via a new `pauseMs`
+  field on the mission walk step (honored in consumeMissionStep: sets idle +
+  a phaseTimeout before starting the leg; note idle-arrival ignores holdMs, so
+  pauseMs is the correct lever). Verified live on home: he walk-stops-walks
+  x=184→401→777 across the hero-title span at y=84 (feet on the letters), ~2-3s
+  per step. Intermediate steps are fixed points (not scroll-re-anchored) — fine
+  for a brief traverse; the near/far ends still re-anchor. Gates green; movement
+  + perch re-verified. NOT pushed.
+- **2026-07-19 (perch-scale leak fix)** — Fixed the mascot rendering SHRUNK
+  while standing/idle at the top of the hero (user screenshot: small robot at
+  the ticker row with space to spare). Root cause: a perch on a narrow element
+  set perchScaleRef < 1, and when the mission drained into GENUINE idle (queue
+  empty, no next step to reset it via `?? 1`), the shrunk scale leaked into the
+  standing/idle/peek pose. Fix: `enterIdle` now force-resets perchScaleRef to 1
+  when no mission step is consumed — belt-and-braces so a shrink can never
+  persist outside an active perch surface leg. Verified: scale=1 in every state
+  over 2min incl. the top band; rendered pose height 139px (full) on the hero.
+  Gates green. NOT pushed.
+- **2026-07-19 (feet on the bottom edge)** — Fixed the mascot floating ~16-24px
+  ABOVE the viewport bottom when resting/roaming down there (user: should look
+  like he's standing ON the bottom/taskbar, not hovering). The bottom positions
+  used `viewportHeight - EDGE_INSET - size` (16px gap) plus the clip's ~8px
+  transparent foot padding. Added `bottomStandY(vh, size)` in companionZones =
+  `vh - size + COMPANION_PERCH_FOOT_OFFSET_PX` so his VISIBLE feet touch the
+  bottom edge; used it in fixedCornerPoint + variedRestPoint. (randomSafePoint's
+  gutter band bottom is a roam RANGE, not a standing edge — left as-is.)
+  Verified: container bottom 884→910 at vh900 (feet now at ~900, the edge);
+  mobile corner feet at 842/844 with ZERO text overlap (footer reservation
+  still holds). He also actively roams the bottom band (11 distinct x, all
+  activities: walk/run/jump/peek/dance/stretch/think/doze/exercise). Gates
+  green. NOT pushed.

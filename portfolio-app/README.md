@@ -1,106 +1,107 @@
 # Naseeruddin Shaik — Portfolio Website
 
-A personal portfolio website built with **React + TypeScript**. It has a dark,
-animated, "premium" look: a particle background, a custom mouse cursor, a
-full-screen intro loader, scroll animations, and more.
+A personal portfolio site built with **React 19 + TypeScript + Framer Motion**.
+Dark, animated, "premium" look — particle background, custom cursor, a
+full-screen intro loader, scroll reveals, page transitions, and a roaming
+animated robot mascot ("Maska Bhai") that walks around the site.
 
-This README is written so that **anyone — even a junior developer or someone new
-to React — can understand how the project is organised and how to change things.**
+Written so **anyone new to the project can understand how it's organised and
+how to change things.**
+
+> **Continuing development / picking up as a coding agent?** Read
+> [`HANDOFF.md`](./HANDOFF.md) first. It's the full technical briefing: the
+> mascot architecture and its do-not-break invariants, the animation-clip
+> pipeline, the verification playbook, and the live work queue. This README is
+> the human-facing overview; HANDOFF.md is the deep detail.
 
 ---
 
 ## Table of contents
 
-1. [What is this? (the big picture)](#1-what-is-this-the-big-picture)
-2. [The tech stack, in plain English](#2-the-tech-stack-in-plain-english)
-3. [How to run it on your computer](#3-how-to-run-it-on-your-computer)
-4. [⭐ The one file you edit most: the content file](#4--the-one-file-you-edit-most-the-content-file)
+1. [The big picture](#1-the-big-picture)
+2. [Tech stack](#2-tech-stack)
+3. [Run it locally](#3-run-it-locally)
+4. [⭐ The one file you edit most: content](#4--the-one-file-you-edit-most-content)
 5. [Folder & file map](#5-folder--file-map)
 6. [How the app works (data flow)](#6-how-the-app-works-data-flow)
-7. [The animation / effects layer](#7-the-animation--effects-layer)
-8. ["How do I…?" quick recipes](#8-how-do-i-quick-recipes)
-9. [Accessibility & performance](#9-accessibility--performance)
-10. [Available commands](#10-available-commands)
-11. [Putting it online (deployment)](#11-putting-it-online-deployment)
+7. [The effects layer](#7-the-effects-layer)
+8. [Maska Bhai — the mascot](#8-maska-bhai--the-mascot)
+9. ["How do I…?" recipes](#9-how-do-i-recipes)
+10. [Accessibility & performance](#10-accessibility--performance)
+11. [Commands](#11-commands)
+12. [Deployment](#12-deployment)
 
 ---
 
-## 1. What is this? (the big picture)
+## 1. The big picture
 
-It's a **single-page website** (SPA). That means the whole site is one HTML page,
-and JavaScript swaps the visible content when you click a menu item (Home,
-About, Skills, Projects, Contact). The URL changes to things like `#about`, but
-the page never fully reloads.
+A **single-page website** (SPA): one HTML page, and JavaScript swaps the visible
+content when you click a menu item (Home, About, Skills, Projects, Contact). The
+URL changes to `#about` etc., but the page never fully reloads (a tiny custom
+hash router, `useHashRoute` — no router library).
 
-Two ideas make the whole project easy to reason about:
+Two ideas keep it easy to reason about:
 
-- **Content is separated from code.** All the words you see on the site (your
-  name, job history, skills, project descriptions) live in **one file**:
-  `src/data/portfolioData.ts`. The React components just *display* whatever is in
-  that file. So to update the site's text, you edit that one file — not the
-  layout code.
-- **Look & animation live in CSS + one hook.** All colours, spacing, and styles
-  are in `src/App.css`. All the interactive animation logic (cursor, particles,
-  scroll reveals) is in `src/hooks/useInteractions.ts`.
+- **Content is separated from code.** Every word on the site lives in **one
+  file**: `src/content/portfolio.ts`. Components just *display* what's in it.
+- **Look lives in CSS; behaviour lives in hooks.** Styling is in
+  `src/app/App.css`. The interactive animation logic is split into small focused
+  hooks under `src/hooks/`.
 
 ---
 
-## 2. The tech stack, in plain English
+## 2. Tech stack
 
 | Tool | What it is | Why it's here |
 |------|-----------|---------------|
-| **React** | A library for building user interfaces out of reusable "components". | Lets us build the pages as small pieces (HomePage, NavigationBar, …). |
-| **TypeScript** | JavaScript + type checking. | Catches mistakes early (e.g. a typo in a field name) before the site runs. |
-| **Create React App** | The tool that bundles/serves the project. | Gives us `npm start` (dev) and `npm run build` (production) for free. |
-| **Bootstrap** | A CSS framework. | We use its responsive grid (`row`, `col-lg-6`, …) for layout. The colours/styling are overridden by our own `App.css`. |
-| **Plain CSS + Canvas** | No animation libraries. | All effects are hand-written, which keeps the site small and fast. |
+| **React 19** | UI library, components. | Pages built as small reusable pieces. |
+| **TypeScript** | JS + type checking. | Catches field typos before the site runs. |
+| **Create React App** | Bundler/dev server (react-scripts). | `npm start` (dev) and `npm run build` (prod). |
+| **Framer Motion** | Animation library. | Page transitions, and all of the mascot's spring-based motion. Used via `LazyMotion` strict mode — components are `m.*`, never `motion.*`. |
+| **Bootstrap 5 (CSS)** | Responsive grid. | Layout only; colours/styling come from our `App.css`. |
+| **Canvas + CSS** | Hand-written effects. | Particle background, cursor, reveals. |
 
 ---
 
-## 3. How to run it on your computer
+## 3. Run it locally
 
-You need **Node.js** installed (version 18+). Then, in a terminal, from the
-`portfolio-app` folder:
+Needs **Node.js 18+**. From the `portfolio-app` folder:
 
 ```bash
-npm install     # download dependencies (only needed the first time)
-npm start       # start the site in development mode
+npm install     # first time only
+npm start       # dev mode at http://localhost:3000 (auto-reloads on save)
 ```
 
-Then open **http://localhost:3000** in your browser. The page automatically
-refreshes when you save a file.
-
-To make an optimized version for hosting:
+Production build:
 
 ```bash
-npm run build   # creates a "build" folder ready to upload to a web host
+npm run build   # outputs a static "build/" folder ready to host
 ```
 
 ---
 
-## 4. ⭐ The one file you edit most: the content file
+## 4. ⭐ The one file you edit most: content
 
-**`src/data/portfolioData.ts`** holds *every piece of text* on the site, grouped
-by page:
+**`src/content/portfolio.ts`** holds *every piece of text* on the site, grouped
+by page, plus the nav items:
 
 ```ts
 export const portfolioData = {
-  hero:     { ...},   // the Home page (name, tagline, metrics, photo)
-  about:    { ...},   // biography + the career timeline
-  skills:   { ...},   // skill groups + tool list
-  projects: { ...},   // the project cards
-  contact:  { ...},   // email, location, services, links
+  hero:     { … },  // Home (name, tagline, intro, photo)
+  about:    { … },  // biography + career timeline
+  skills:   { … },  // skill groups
+  projects: { … },  // project cards
+  contact:  { … },  // email, socials
+  socialMedia: [ … ],
 };
+export const navItems = [ … ];
 ```
 
-Want to change your tagline? Find `hero.tagline` and edit the text. Want to add a
-job to your timeline? Add an item to the `about.timeline` list. **You never have
-to touch the layout code to change words.**
+Change your tagline? Edit `hero.tagline`. Add a job? Add to `about.timeline`.
+**You never touch layout code to change words.**
 
-`src/types.ts` describes the *shape* each of these objects must have (which
-fields exist and whether they're text, numbers, or lists). If you add a field to
-the content that isn't in the type, TypeScript will warn you — that's a feature,
-not a bug.
+`src/types/index.ts` describes the *shape* each object must have — add a field
+the type doesn't know about and TypeScript warns you.
 
 ---
 
@@ -109,135 +110,161 @@ not a bug.
 ```
 portfolio-app/
 ├── public/
-│   └── index.html         The single HTML page. Contains <head> tags, the fonts,
-│                          and a tiny startup script (see comments inside it).
+│   ├── index.html            The single HTML page.
+│   └── assets/mascot/         Maska Bhai's animation clips (transparent WebP).
 ├── src/
-│   ├── index.tsx          Start point: tells React to render <App> into the page.
-│   ├── App.tsx            The ROOT component. Holds the navbar, footer, the
-│   │                      background effect layers, the intro, and decides which
-│   │                      page to show based on the URL (#home, #about, …).
-│   ├── Intro.tsx          The full-screen loading intro (0→100%, then curtain
-│   │                      splits to reveal the site). Shown once per page load.
-│   ├── App.css            ALL the styling and animations (colours, layout,
-│   │                      keyframes). Organised into labelled sections.
-│   ├── types.ts           TypeScript "shapes" for the content (see section 4).
-│   │
-│   ├── data/
-│   │   └── portfolioData.ts   ⭐ ALL the website text lives here. Edit this.
-│   │
-│   ├── pages/             One file per page. Each just displays its slice of the
-│   │   ├── HomePage.tsx        content data. They receive data as a "prop".
-│   │   ├── AboutPage.tsx
-│   │   ├── SkillsPage.tsx
-│   │   ├── ProjectsPage.tsx
-│   │   └── ContactPage.tsx
-│   │
+│   ├── index.tsx             Renders <App> into the page.
+│   ├── index.css             Global base styles.
+│   ├── app/
+│   │   ├── App.tsx           ROOT component: routing, chrome (navbar/footer/
+│   │   │                     background), intro, and mounts the mascot.
+│   │   ├── App.css           ALL styling and CSS animations (labelled sections).
+│   │   └── routes.tsx        Route registry: maps a route → its page component.
+│   ├── content/
+│   │   └── portfolio.ts       ⭐ ALL website text lives here. Edit this.
+│   ├── types/index.ts        TypeScript shapes for the content (see §4).
+│   ├── features/             One folder per page; each renders its slice of data.
+│   │   ├── home/  about/  skills/  projects/  contact/
+│   ├── components/
+│   │   ├── layout/            Navbar, Footer.
+│   │   ├── effects/           Intro, PageScan, BackgroundFx, HeroTicker,
+│   │   │                      PageTransition, and the mascot:
+│   │   │                      CompanionCharacter + AnimatedMascotPlayer.
+│   │   └── ErrorBoundary.tsx  One broken page can't blank the whole site.
 │   ├── hooks/
-│   │   └── useInteractions.ts  All the interactive animation logic in one place:
-│   │                           particle background, custom cursor, scroll
-│   │                           reveals, 3D tilt, magnetic buttons, etc.
-│   │
-│   └── images/            The portrait photos used on the Home page.
-│
-├── build/                 (Generated by `npm run build` — safe to delete/ignore.)
-└── package.json           Lists dependencies and the npm commands.
+│   │   ├── useHashRoute.ts     URL-hash → route value.
+│   │   ├── useInteractions.ts  Wires up the general effects per route.
+│   │   └── interactions/       Focused hooks: cursor FX, tilt, magnetic, scroll
+│   │                           reveal/progress, portrait slideshow, intro
+│   │                           narration, and the mascot's brain
+│   │                           (useCompanionBehavior + friends).
+│   ├── lib/                   Shared constants & helpers (companionConfig,
+│   │                          companionZones, companionPerch, constants, env).
+│   └── images/               Portrait photos.
+├── scripts/                  Python clip-conversion + normalization tools, and
+│                             Node CDP verification templates (scripts/verify/).
+├── HANDOFF.md                Deep technical briefing for the next developer/agent.
+└── package.json
 ```
 
 ---
 
 ## 6. How the app works (data flow)
 
-Think of it as a simple pipeline:
-
 ```
-portfolioData.ts   →   App.tsx   →   the current Page   →   what you see
-(the content)          (routing)     (HomePage, etc.)       (HTML on screen)
+portfolio.ts   →   App.tsx   →   routes.tsx   →   the current page   →   screen
+(the content)      (routing)     (registry)       (features/*)
 ```
 
-Step by step:
-
-1. **`index.tsx`** starts everything by rendering `<App />`.
-2. **`App.tsx`** reads the URL hash (e.g. `#projects`). A small helper
-   (`useHashRoute`) turns that into a `route` value like `"projects"`.
-3. Based on `route`, `App.tsx` shows exactly one page component and hands it the
-   matching slice of data, e.g. `<ProjectsPage data={projects} />`.
-4. Each **page component** loops over its data and renders the cards/lists. It
-   holds no text of its own — everything comes from the data file.
-5. **`useInteractions(route)`** (called inside `App`) wires up all the animations
-   and re-scans the page whenever the route changes.
+1. **`index.tsx`** renders `<App />`.
+2. **`App.tsx`** reads the URL hash via `useHashRoute` → a `route` like `"projects"`.
+3. **`routes.tsx`** maps that route to one page component, handed the matching
+   slice of `portfolioData`, rendered inside an `ErrorBoundary` and a
+   `PageTransition` (fade/lift between pages).
+4. Each **page** (under `features/`) loops over its data and renders cards/lists.
+   It holds no text of its own.
+5. **`useInteractions(route)`** wires the general animations; the mascot runs
+   independently from its own hooks.
 
 ---
 
-## 7. The animation / effects layer
+## 7. The effects layer
 
-There are two halves that work together:
+- **Visuals** are HTML + CSS: full-screen layers in `App.tsx`
+  (`<canvas className="particles">`, background FX, cursor dots), styled/animated
+  in `App.css`.
+- **Behaviour** is split into small hooks under `src/hooks/interactions/`:
+  particle cursor field, scroll reveals, 3D card tilt, magnetic buttons,
+  scroll-progress bar, portrait slideshow, and the "Play Intro" narration.
 
-- **The visuals** are HTML elements + CSS. In `App.tsx` you'll see a set of
-  full-screen layers near the top: `<canvas className="particles">`, `.beam`,
-  `.aurora`, `.spotlight`, `.grain`, plus the two cursor dots. They're styled and
-  animated in `App.css`.
-- **The behaviour** is in `src/hooks/useInteractions.ts`. It's one custom React
-  hook that:
-  - draws the **particle constellation** on the canvas and makes it follow the mouse,
-  - moves the **custom cursor** (a dot + a trailing ring),
-  - runs the **scroll reveals** (elements fade/slide in when they enter the screen),
-  - handles **3D tilt** on cards and **magnetic** buttons,
-  - updates the top **scroll-progress bar** and the **navbar** shadow.
-
-**Scroll reveals — the one trick to know:** any element that should animate in as
-you scroll to it has the attribute `data-reveal` in the JSX (search the code for
-`data-reveal`). The hook watches those elements and adds an `is-in` class when
-they appear; the CSS then animates them. Cards that tilt in 3D have `data-tilt`.
-
-The **intro loader** is a separate component, `Intro.tsx`. `App.tsx` shows it on
-load and hides it (`setShowIntro(false)`) when it finishes.
+**Scroll reveals:** any element with `data-reveal` in the JSX fades/slides in as
+you scroll to it (`data-tilt` for 3D cards). The **intro loader** (`Intro.tsx`)
+shows on load, then reveals the site.
 
 ---
 
-## 8. "How do I…?" quick recipes
+## 8. Maska Bhai — the mascot
+
+A roaming animated robot ("Maska Bhai", NS01 design: white ceramic body, LED
+visor, gold trim, navy cape, "NS" chest badge) that lives across the whole site.
+Every pose is a **video-derived transparent WebP** in `public/assets/mascot/`.
+On real spring physics (never teleports), he:
+
+- **walks on the page content** — the tops of cards, section headings, and the
+  big "Hi, I am…" hero heading — pacing across wide ones step by step;
+- **auto-shrinks to fit** a tight element so he's never too big to stand on it,
+  feet always planted on the border;
+- **stands on the bottom edge** (like a taskbar) and roams the bottom band;
+- **reacts to your cursor** (walks over, waves / high-fives);
+- **peeks** from screen edges, and **dozes off** after ~22s idle, waking with a
+  stretch when you move;
+- cycles a fair-shuffle of idle moves (stretch, dance, think, doze, …).
+
+He's **disabled under reduced-motion** and is a smaller fixed-corner buddy on
+mobile.
+
+He's the main focus of ongoing work. **Full architecture, the do-not-break
+invariants, the animation-clip conversion pipeline, and the verification
+playbook are all in [`HANDOFF.md`](./HANDOFF.md)** — start there before changing
+anything mascot-related. Quick pointers:
+
+- **Sizes/zones:** `src/lib/companionConfig.ts`, `companionZones.ts`, `companionPerch.ts`.
+- **Brain (state machine):** `src/hooks/interactions/useCompanionBehavior.ts`.
+- **Renderer + clips:** `src/components/effects/CompanionCharacter.tsx` and `AnimatedMascotPlayer.tsx`.
+- **Tunables:** `src/lib/constants.ts` (`COMPANION_*`).
+- **New clips** must go through `scripts/normalize_clips.py` (keeps him a
+  consistent size) — see HANDOFF §4.
+
+He's disabled entirely under reduced-motion, and sits in a fixed corner on
+mobile instead of roaming.
+
+---
+
+## 9. "How do I…?" recipes
 
 | I want to… | Do this |
 |------------|---------|
-| **Change any text** (name, tagline, bio, projects…) | Edit `src/data/portfolioData.ts`. |
-| **Add a project card** | Add an object to `projects.featured` in the content file. |
-| **Add a job to the timeline** | Add an object to `about.timeline`. |
-| **Swap the photo** | Put your image in `src/images/`, then update the `import` and `photo.src` in `portfolioData.ts` (or overwrite `src/images/mewithdesk1.png`). |
-| **Change the colours** | Edit the CSS variables at the very top of `src/App.css` (`--accent`, `--accent-2`, `--bg`, …). Every colour references these. |
-| **Change the intro length** | Edit the `LOAD_MS` / `EXIT_MS` numbers at the top of `src/Intro.tsx`. |
-| **Change the words in the scrolling ticker** | Edit the `heroTickerWords` list in `src/App.tsx`. |
-| **Turn an effect off** | Delete its element in `App.tsx` (e.g. remove `<canvas className="particles" />`) — everything is optional and independent. |
+| **Change any text** | Edit `src/content/portfolio.ts`. |
+| **Add a project card** | Add an object to `projects` in the content file. |
+| **Add a timeline job** | Add an object to `about.timeline`. |
+| **Change the colours** | Edit the CSS variables at the top of `src/app/App.css` (`--accent`, `--bg`, …). |
+| **Add a page** | Add a renderer in `src/app/routes.tsx`, a `navItems` entry, and extend the `RouteKey` type. |
+| **Change mascot behaviour** | Read `HANDOFF.md` first, then tune `src/lib/constants.ts` (`COMPANION_*`). |
+| **Add a mascot animation** | Convert/normalize the clip (`scripts/normalize_clips.py`), drop it in `public/assets/mascot/`, add its `POSES` line — see HANDOFF §4. |
 
 ---
 
-## 9. Accessibility & performance
+## 10. Accessibility & performance
 
-- **Reduced motion:** if a visitor has "reduce motion" turned on in their OS,
-  *all* the heavy effects (particles, cursor, intro, reveals) are automatically
-  switched off and the site shows static content. This is handled with the
-  `prefers-reduced-motion` media query in `App.css` and checks in the hook.
-- **Touch devices:** the custom cursor and magnetic buttons are skipped on phones
-  and tablets (they only make sense with a mouse).
-- **If JavaScript fails to load:** a small script in `public/index.html` reveals
-  all content after a few seconds so the page is never stuck blank.
-- **Performance:** the particle count scales to the screen size, all effects run
-  in one shared animation loop, and animations pause when the browser tab is
-  hidden.
+- **Reduced motion:** with OS "reduce motion" on, the heavy effects and the
+  mascot are switched off (`prefers-reduced-motion` in `App.css` + hook checks).
+- **Touch devices:** the custom cursor, particle field, and mascot roaming are
+  skipped/simplified on phones and tablets.
+- **Resilience:** an `ErrorBoundary` keeps one broken page from blanking the site.
+- **Performance:** effects pause when the tab is hidden; the mascot's animation
+  clips preload in tiers (essentials first, the rest at browser idle, skipped
+  under Save-Data).
 
 ---
 
-## 10. Available commands
+## 11. Commands
 
 | Command | What it does |
 |---------|--------------|
 | `npm start` | Run locally at http://localhost:3000 with auto-reload. |
 | `npm run build` | Build the optimized production version into `build/`. |
-| `npm test` | Run tests (interactive). |
+| `npm test -- --watchAll=false` | Run the test suite once (CI mode). |
+| `npx tsc --noEmit` | Type-check without building. |
+| `npx eslint src --ext .ts,.tsx --max-warnings=0` | Lint. |
+
+The definition of "done" for any change: all of the above green, plus a visual
+check for anything user-facing (see HANDOFF's verification playbook).
 
 ---
 
-## 11. Putting it online (deployment)
+## 12. Deployment
 
-Run `npm run build`. That creates a `build/` folder containing plain static files
-(HTML, CSS, JS). Upload that folder to any static host — for example
-**Netlify**, **Vercel**, **GitHub Pages**, or **Cloudflare Pages**. No server or
-database is required.
+`netlify.toml` at the monorepo root builds/publishes **only** this
+`portfolio-app` folder (`npm run build` → `build/`). Routing is hash-based, so no
+SPA redirect rules are needed. Pushing to the repo triggers the deploy — so a
+push is a live deploy.
