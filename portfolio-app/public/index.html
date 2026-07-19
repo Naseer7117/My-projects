@@ -19,10 +19,21 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Load the fonts stylesheet non-render-blocking: fetch as 'print' (low
+         priority, off the critical path) then flip to 'all' once loaded. The
+         page's font-display:swap already avoids invisible text meanwhile. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <title>Naseeruddin Shaik — Software Developer</title>
     <style>
       /* Anti-flash: dark background on BODY only. Do NOT set a background on

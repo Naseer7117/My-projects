@@ -16,6 +16,9 @@ function setupTilt(): () => void {
 
   cards.forEach((card) => {
     let raf = 0;
+    const onEnter = () => {
+      card.style.willChange = 'transform'; // promote only while tilting
+    };
     const onMove = (e: PointerEvent) => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -35,12 +38,16 @@ function setupTilt(): () => void {
       raf = 0;
       card.style.setProperty('--tx', '0deg');
       card.style.setProperty('--ty', '0deg');
+      card.style.willChange = 'auto'; // release the promotion once settled
     };
+    card.addEventListener('pointerenter', onEnter);
     card.addEventListener('pointermove', onMove);
     card.addEventListener('pointerleave', onLeave);
     cleanups.push(() => {
+      card.removeEventListener('pointerenter', onEnter);
       card.removeEventListener('pointermove', onMove);
       card.removeEventListener('pointerleave', onLeave);
+      card.style.willChange = 'auto';
     });
   });
 

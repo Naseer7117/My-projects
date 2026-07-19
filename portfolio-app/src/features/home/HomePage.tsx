@@ -14,6 +14,28 @@
 import React from 'react';
 import { HeroContent, RouteKey } from 'types';
 import { usePortraitSlideshow } from 'hooks/interactions/usePortraitSlideshow';
+import { useIntroNarration } from 'hooks/interactions/useIntroNarration';
+import { useSetCompanionHandoff } from 'hooks/interactions/CompanionContext';
+import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
+import { companionSizeFor } from 'lib/companionConfig';
+import IntroCaptions from 'components/effects/IntroCaptions';
+
+const PlayIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+const PauseIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
+  </svg>
+);
+
+/** Builds the intro narration script from the site's own content — stays in
+ * sync automatically if the name/role/tagline ever changes in portfolio.ts. */
+function buildIntroScript(data: HeroContent): string {
+  return `Hi, I'm ${data.name}, a ${data.role}. ${data.tagline} ${data.introduction} Scroll down to see my work.`;
+}
 
 type HomePageProps = {
   data: HeroContent;
@@ -55,6 +77,68 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
     setShowSocials((prev) => !prev);
     requestAnimationFrame(() => socialToggleRef.current?.blur());
   }, []);
+
+  const introScript = React.useMemo(() => buildIntroScript(data), [data]);
+  const narration = useIntroNarration(introScript);
+  const introOpen = narration.playing || narration.paused;
+  const handleToggleIntro = React.useCallback(() => {
+    if (narration.playing) {
+      narration.pause();
+    } else {
+      narration.play();
+    }
+  }, [narration]);
+
+  // Tell the globally-roaming companion (rendered once in App.tsx) to anchor
+  // itself at the hero photo and "talk" while narration plays, then hand
+  // roaming back once it stops. See CompanionContext for why this is a
+  // handoff rather than the character living in this page.
+  const portraitWrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const setCompanionHandoff = useSetCompanionHandoff();
+  React.useEffect(() => {
+    if (!narration.playing) {
+      setCompanionHandoff({ talking: false, anchor: null });
+      return;
+    }
+    const updateAnchor = () => {
+      const rect = portraitWrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const half = companionSizeFor(window.innerWidth) / 2;
+      setCompanionHandoff({
+        talking: true,
+        anchor: { x: rect.left + rect.width / 2 - half, y: rect.top - half },
+      });
+    };
+    // Re-measure on scroll/resize, not just once at play-start — the portrait
+    // is `position: fixed`-relative, so its viewport position genuinely
+    // changes if the visitor scrolls or resizes while narration is playing.
+    updateAnchor();
+    window.addEventListener('scroll', updateAnchor, { passive: true });
+    window.addEventListener('resize', updateAnchor);
+    return () => {
+      window.removeEventListener('scroll', updateAnchor);
+      window.removeEventListener('resize', updateAnchor);
+    };
+  }, [narration.playing, setCompanionHandoff]);
+  // Clear the handoff on unmount (route change away from Home) so the
+  // companion doesn't stay stuck "talking" with speech already cancelled.
+  React.useEffect(() => {
+    return () => setCompanionHandoff({ talking: false, anchor: null });
+  }, [setCompanionHandoff]);
+
+  // Context beat (§5): peek near the portrait on arrival — but only when
+  // narration is NOT already playing, since `talking` always outranks a
+  // context beat anyway and firing the request unconditionally would just
+  // be immediately shadowed most of the time narration auto-starts. Guarded
+  // the same once-per-landing way every other page's beat is (see
+  // useCompanionContextBeat.ts).
+  useCompanionContextBeat(
+    'home',
+    '.hero-portrait-wrapper',
+    'peeking',
+    { expression: 'happy', ms: 1600, side: 'left' },
+    !narration.playing
+  );
 
   const heroPortraitStageClassName = [
     'hero-portrait-stage',
@@ -137,7 +221,7 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
             <p className="mt-4 text-muted" data-reveal>{data.availabilityNote}</p>
           </div>
           <div className="col-lg-5 col-xl-4 ms-lg-auto hero-sidebar">
-            <div className="hero-portrait-wrapper mb-4" data-reveal>
+            <div className="hero-portrait-wrapper mb-4" data-reveal ref={portraitWrapperRef}>
               <div
                 className={heroPortraitStageClassName}
                 onMouseEnter={handleMouseEnterPortrait}
@@ -164,6 +248,32 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
                 <span className="hero-portrait-shine" aria-hidden="true" />
                 <span className="hero-portrait-scan" aria-hidden="true" />
               </div>
+              {introOpen ? (
+                <div className="hero-intro-overlay">
+                  <IntroCaptions words={narration.words} activeWordIndex={narration.activeWordIndex} />
+                  {narration.playing ? (
+                    <span className="hero-intro-scroll-cue" aria-hidden="true">
+                      Scroll for more ↓
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {narration.supported ? (
+                <button
+                  type="button"
+                  className={`hero-intro-toggle${narration.playing ? ' hero-intro-toggle--playing' : ''}`}
+                  onClick={handleToggleIntro}
+                  aria-pressed={introOpen}
+                  aria-label={narration.playing ? 'Pause introduction' : 'Play introduction'}
+                >
+                  <span className="hero-intro-toggle__icon">
+                    {narration.playing ? <PauseIcon /> : <PlayIcon />}
+                  </span>
+                  <span className="hero-intro-toggle__label">
+                    {narration.playing ? 'Pause' : 'Play intro'}
+                  </span>
+                </button>
+              ) : null}
             </div>
             <div className="card soft-card hero-quick-card" data-reveal>
               <div className="card-body">

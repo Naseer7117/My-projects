@@ -9,12 +9,17 @@
  */
 import React from 'react';
 import { SkillsContent } from 'types';
+import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
 
 type SkillsPageProps = {
   data: SkillsContent;
 };
 
-const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => (
+const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => {
+  // Context beat (§5): walk over and peek near the first capability card.
+  useCompanionContextBeat('skills', '.skills-cluster-card', 'peeking', { expression: 'happy', ms: 2000 }, true);
+
+  return (
   <section className="page py-5">
     <div className="container">
       <h2 className="section-title text-center mb-5" data-reveal>Capabilities</h2>
@@ -103,6 +108,7 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default SkillsPage;

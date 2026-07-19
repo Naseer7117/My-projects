@@ -29,6 +29,10 @@ import HeroTicker from 'components/effects/HeroTicker';
 import Navbar from 'components/layout/Navbar';
 import Footer from 'components/layout/Footer';
 import PageTransition from 'components/effects/PageTransition';
+import CompanionCharacter from 'components/effects/CompanionCharacter';
+import { CompanionProvider } from 'hooks/interactions/CompanionContext';
+import { useCompanionBehavior } from 'hooks/interactions/useCompanionBehavior';
+import { applyCompanionSizeCssVar } from 'lib/companionConfig';
 
 // The FULL intro plays once per browser session; later reloads in the same
 // session get the QUICK version. No intro at all under reduced-motion.
@@ -50,7 +54,37 @@ const SCAN_ROUTES: RouteKey[] = ['home', 'skills', 'contact'];
 // `running` is false while the initial-load scan waits for the intro curtains.
 type ScanRun = { id: number; variant: IntroVariant; running: boolean };
 
-const App: React.FC = () => {
+/** Reads the roaming companion's state machine and renders it. Split out so
+ * AppShell's existing responsibilities stay uncluttered; needs to be inside
+ * CompanionProvider (see the App wrapper below) to read the talking handoff.
+ * Takes no route prop — route-travel theming is cut, and context beats are
+ * wired per-page via CompanionContext, not through this component. */
+const CompanionRoamer: React.FC = () => {
+  const { enabled, behavior, gait, idleSub, x, y, facing, strideRef, walkArcRef, rootRef, perchScaleRef } =
+    useCompanionBehavior();
+  React.useEffect(() => {
+    if (!enabled) return;
+    return applyCompanionSizeCssVar(); // returns the resize-listener unsubscribe
+  }, [enabled]);
+
+  if (!enabled) return null;
+  return (
+    <CompanionCharacter
+      behavior={behavior}
+      gait={gait}
+      idleSub={idleSub}
+      x={x}
+      y={y}
+      facing={facing}
+      strideRef={strideRef}
+      walkArcRef={walkArcRef}
+      rootRef={rootRef}
+      perchScaleRef={perchScaleRef}
+    />
+  );
+};
+
+const AppShell: React.FC = () => {
   const [route, navigate] = useHashRoute('home');
   const [introVariant, setIntroVariant] = React.useState(initialIntroVariant);
   // Initial-load scan: armed (but not sweeping yet) when an intro plays and
@@ -153,9 +187,17 @@ const App: React.FC = () => {
         {isHome ? <HeroTicker footer /> : null}
 
         <Footer name={hero.name} socials={portfolioData.socialMedia} />
+
+        <CompanionRoamer />
       </div>
     </LazyMotion>
   );
 };
+
+const App: React.FC = () => (
+  <CompanionProvider>
+    <AppShell />
+  </CompanionProvider>
+);
 
 export default App;

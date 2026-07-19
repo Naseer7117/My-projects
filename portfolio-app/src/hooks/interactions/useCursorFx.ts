@@ -93,12 +93,15 @@ export function useCursorFx(): void {
     }
 
     // --- particle constellation ---
+    // Reacts to cursor position, so it's pointless (and, per-frame O(n^2),
+    // expensive) on touch devices where there's no cursor to react to — gate
+    // it on `fine` like every other branch in this hook already is.
     const canvas = document.querySelector<HTMLCanvasElement>('.particles');
     const ctx = canvas?.getContext('2d') || null;
     let particles: Particle[] = [];
     let W = 0;
     let H = 0;
-    const runParticles = Boolean(canvas && ctx) && !prefersReducedMotion();
+    const runParticles = fine && Boolean(canvas && ctx);
 
     const sizeCanvas = () => {
       if (!canvas) return;

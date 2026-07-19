@@ -11,12 +11,21 @@
  */
 import React from 'react';
 import { ProjectsContent } from 'types';
+import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
+import { useRequestCompanionCelebration } from 'hooks/interactions/CompanionContext';
 
 type ProjectsPageProps = {
   data: ProjectsContent;
 };
 
-const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
+const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => {
+  // Context beat (§5): walk over and peek near the first featured project.
+  useCompanionContextBeat('projects', '.project-card--featured', 'peeking', { expression: 'happy', ms: 1800 }, true);
+  // The mascot cheers when a visitor actually opens a repo / live demo —
+  // real outbound intent, not hover noise.
+  const celebrate = useRequestCompanionCelebration();
+
+  return (
   <section className="page py-5">
     <div className="container">
       <h2 className="section-title text-center mb-5" data-reveal>Selected work</h2>
@@ -61,6 +70,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
                           href={project.repoUrl}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={celebrate}
                         >
                           <span aria-hidden="true">↗</span> View code
                         </a>
@@ -71,6 +81,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
                           href={project.liveUrl}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={celebrate}
                         >
                           <span aria-hidden="true">↗</span> Live demo
                         </a>
@@ -114,6 +125,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default ProjectsPage;

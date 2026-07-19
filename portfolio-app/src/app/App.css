@@ -640,12 +640,34 @@ a:focus {
 .page-shell {
   flex: 1;
   padding-bottom: 5rem;
-  padding-inline: clamp(1.15rem, 4vw, 3rem);
+  padding-inline: clamp(1rem, 2vw, 1.5rem); /* small edge gutter — content fills near-full-width (was up to 48px, too much) */
 }
 
 @media (max-width: 575px) {
   .page-shell {
     padding-inline: 1.1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Reserves REAL empty space for the roaming companion's fixed mobile
+     corner (see fixedCornerPoint() in companionZones.ts) — not a guess at
+     "probably clear," an actual guarantee: no page's content can ever
+     render into this padding, so the corner it occupies is genuinely safe
+     at any scroll position, on any page. On .site-footer specifically
+     (not .page-shell) because Footer renders AFTER page-shell in the DOM
+     (see App.tsx) — the true trailing edge of every page is the footer,
+     so that's where the guaranteed-empty strip has to live. Sized to the
+     mobile companion footprint (--companion-size: 64px) + its edge inset
+     + a margin. */
+  .site-footer {
+    /* !important required: Footer.tsx applies Bootstrap's .py-4, which sets
+       padding-bottom via !important — without matching it, this rule is
+       silently outranked and the "reserved" space never actually exists.
+       64px margin (not 32px) — verified against real measured layouts:
+       sub-pixel layout rounding differences between pages were enough to
+       graze the credit line at a tighter margin. */
+    padding-bottom: calc(64px + 64px) !important;
   }
 }
 
@@ -699,7 +721,9 @@ a:focus {
   transform: perspective(1100px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
   transform-style: preserve-3d;
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
-  will-change: transform;
+  /* will-change is set from useTilt.ts only WHILE a card is actively tilting,
+     then released — keeping every card GPU-promoted for the whole page life
+     wastes compositor memory (esp. on mobile). */
 }
 
 [data-tilt]::after {
@@ -838,9 +862,9 @@ h1, h2, h3, h4, h5, h6 {
 
 .main-navbar__container {
   width: 100%;
-  max-width: 1280px;
+  max-width: min(100%, 1760px); /* match the body content width so nav + content share the same edges */
   margin-inline: auto;
-  padding: 0.7rem clamp(0.9rem, 3vw, 2rem);
+  padding: 0.7rem clamp(1.75rem, 2.5vw, 2.25rem); /* inline padding ≈ page-shell gutter + container pad, so nav items align with body content */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1114,7 +1138,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .hero-page .container-xxl {
-  max-width: 1280px;
+  max-width: min(100%, 1760px);
 }
 
 .hero-title {
@@ -1554,6 +1578,218 @@ h1, h2, h3, h4, h5, h6 {
   .hero-metrics {
     grid-template-columns: 1fr 1fr;
     gap: 0.6rem;
+  }
+}
+
+/* ---------- Hero intro narration (play button, talking character, captions) ---------- */
+
+.hero-intro-toggle {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 4.25rem;
+  padding: 0.6rem 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(8, 10, 20, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.hero-intro-toggle:hover {
+  border-color: var(--accent-2);
+  transform: translateY(-2px);
+}
+.hero-intro-toggle__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--gradient);
+  color: #05060d;
+}
+.hero-intro-toggle__icon svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.hero-intro-toggle--playing .hero-intro-toggle__icon {
+  background: var(--accent-3);
+}
+.hero-intro-toggle__label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---------- Roaming companion mascot ----------
+   Rendered once, globally (App.tsx), position: fixed + pointer-events: none
+   so it visually roams the whole site but can never block a click.
+
+   ANIMATED-SOURCE RENDERER (CompanionCharacter.tsx over
+   AnimatedMascotPlayer.tsx): the mascot is one media element per behavior —
+   a video-derived animated WebP (or, schema-ready, a transparent <video> for
+   future .webm renders) resolved from a static source map and crossfaded via
+   AnimatePresence. All life/physics happens at the CONTAINER level, driven by
+   Framer Motion inline styles rather than CSS keyframes:
+     - position springs on .companion (x/y from useCompanionBehavior),
+     - pseudo-3D cursor tilt on .companion__stage (rotateX/rotateY springs),
+     - squash-and-stretch (bouncy 200/10 springs) + the celebration bounce
+       on .companion__squash (behavior variants),
+     - the whole-crossing parabolic hop arc on .companion__bob (written per
+       frame from the FSM's walk progress; the old procedural stride bob is
+       gone — every gait's footsteps are baked into its clip),
+     - stationary breathing / idle drift on .companion__float.
+   These rules therefore only LAY OUT the wrapper chain.
+
+   POSITION: driven entirely by Framer Motion springs — there is deliberately
+   NO `transition: transform` here. A spring blends continuously from the
+   current position AND velocity, which is what makes movement genuinely
+   un-teleportable. */
+.companion {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1200; /* above page content, below the intro/page-scan overlays */
+  width: var(--companion-size, 96px);
+  height: var(--companion-size, 96px);
+  pointer-events: none;
+  /* Grounding shadow — heavy enough to read as contact with the page at any
+     roam position (per animation spec). Killed on mobile below: compositor
+     cost the roaming loop would pay every move. */
+  filter: drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.6));
+}
+
+/* Wrapper chain — each layer owns exactly ONE motion concern (tilt, then
+   squash, then the hop arc, then stationary float) so their transforms can
+   never fight each other. */
+.companion__stage,
+.companion__squash,
+.companion__bob,
+.companion__float {
+  position: absolute;
+  inset: 0;
+}
+
+/* Squash-and-stretch and the walk bob push UP from the ground — feet stay
+   planted while the body compresses/bounces. */
+.companion__squash,
+.companion__bob {
+  transform-origin: 50% 100%;
+}
+
+/* Perch fit-scale wrapper: bottom-origin so shrinking to fit a tight border
+   keeps the mascot's FEET on the line (scale about the feet, not the center).
+   inset:0 so it fills the container and the scale is about the true bottom. */
+.companion__scale {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+/* The pose media element — <img> (animated WebP) and any future transparent
+   <video> share this class so both source kinds lay out identically.
+
+   SIZE LOCK (fixes the clip-swap size shift): every clip is normalized at
+   build time (scripts/normalize_clips.py) to ONE canvas aspect
+   (--companion-pose-aspect) with the robot's HEAD at a uniform size and its
+   feet on a fixed baseline. So we can give the pose a FIXED box — height
+   100% of the container, width derived from that single aspect — and let
+   `object-fit: contain` + `object-position: bottom center` seat every clip
+   identically: same apparent scale, feet on the container's bottom edge,
+   no matter which clip is active. transform-origin bottom center keeps
+   Framer Motion's facing flip / any scale pinned to the feet.
+   (Container height, not the box, sets the mascot's on-screen size — see
+   --companion-size.) pointer-events stay off, so any symmetric overflow of a
+   wide keyframe can never block a click. */
+.companion__pose {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: 100%;
+  width: calc(var(--companion-size, 96px) * var(--companion-pose-aspect, 0.722));
+  object-fit: contain;
+  object-position: bottom center;
+  transform-origin: bottom center;
+  max-width: none;
+  user-select: none;
+}
+
+/* Full overlay that replaces the static portrait view while narration plays. */
+.hero-intro-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 1.5rem;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(5, 6, 13, 0.82), rgba(5, 6, 13, 0.92));
+  border-radius: inherit;
+  animation: hero-intro-overlay-in 0.35s ease both;
+}
+@keyframes hero-intro-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.hero-intro-captions {
+  max-width: 26rem;
+  min-height: 4.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.hero-intro-captions__word {
+  opacity: 0.32;
+  transition: opacity 0.15s ease;
+}
+.hero-intro-captions__word--said {
+  opacity: 1;
+}
+.hero-intro-captions__word--active {
+  opacity: 1;
+  color: var(--accent-2);
+}
+
+.hero-intro-scroll-cue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  animation: hero-intro-scroll-cue-bounce 1.6s ease-in-out infinite;
+}
+@keyframes hero-intro-scroll-cue-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50% { transform: translateY(5px); opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  .hero-intro-toggle {
+    right: 0.6rem;
+    bottom: 0.6rem;
+  }
+  .hero-intro-captions {
+    font-size: 0.9rem;
+    max-width: 20rem;
   }
 }
 
@@ -2329,13 +2565,51 @@ a.social-btn:focus-visible {
 
 .container,
 .container-xxl {
-  max-width: 1280px;
+  /* Fill the page-shell's inner width (it already supplies a small edge
+     gutter), capped so text lines stay readable on ultrawide. This is what
+     makes body content reach the same edges as the navbar. */
+  max-width: min(100%, 1760px);
 }
 hr {
   color: var(--border);
 }
 .badge {
   font-weight: 500;
+}
+
+/* ---------- Mobile perf tuning ----------
+   Same effects, lighter cost: blur radii and backdrop-filter blur are the
+   most GPU-expensive properties on mid/low-end mobile hardware, and the
+   aurora + navbar + cards apply theirs on every scroll/animation frame (not
+   just once). Values below are noticeably lighter, not removed — the look
+   stays, the per-frame compositor cost drops. Desktop (>= 768px) is
+   untouched. */
+@media (max-width: 767px) {
+  .aurora {
+    filter: blur(48px) saturate(150%);
+  }
+  /* The full-viewport film-grain (mix-blend-mode: overlay) and the spinning
+     conic-gradient beam are per-frame compositor repaints that are costly on
+     mobile GPUs and imperceptible at phone size — drop both. The aurora glow
+     still carries the ambient look. */
+  .grain {
+    display: none;
+  }
+  .beam {
+    display: none;
+  }
+  .main-navbar {
+    backdrop-filter: blur(8px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+  }
+  .card {
+    backdrop-filter: blur(7px) saturate(120%);
+    -webkit-backdrop-filter: blur(7px) saturate(120%);
+  }
+  .companion {
+    --companion-size: 64px; /* smaller footprint on small screens */
+    filter: none; /* drop-shadow is a compositor cost the roaming loop pays every move */
+  }
 }
 
 /* ---------- Reduced motion ---------- */
@@ -2375,7 +2649,8 @@ hr {
     display: none !important;
   }
   .intro,
-  .page-scan {
+  .page-scan,
+  .companion {
     display: none !important;
   }
 }

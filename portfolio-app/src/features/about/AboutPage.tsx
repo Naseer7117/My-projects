@@ -9,12 +9,19 @@
  */
 import React from 'react';
 import { AboutContent } from 'types';
+import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
 
 type AboutPageProps = {
   data: AboutContent;
 };
 
-const AboutPage: React.FC<AboutPageProps> = ({ data }) => (
+const AboutPage: React.FC<AboutPageProps> = ({ data }) => {
+  // Context beat (§5): settle in and "read" beside the first timeline entry —
+  // the page's real spine. See useCompanionContextBeat.ts for why this fires
+  // once per route-landing and defers to any higher-priority companion state.
+  useCompanionContextBeat('about', '.timeline-item', 'sitting', { expression: 'content', ms: 4000 }, true);
+
+  return (
   <section className="page py-5">
     <div className="container">
       <div className="row g-4">
@@ -101,6 +108,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ data }) => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default AboutPage;
