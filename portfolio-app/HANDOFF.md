@@ -74,7 +74,7 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 
 | Layer | File | Owns |
 |---|---|---|
-| Sizes/layout constants | `src/lib/companionConfig.ts` | THE single source of truth: desktop **132px** (default/full), mobile **76px**, `COMPANION_SIZE_FIT_FLOOR` **88px** (perch shrink floor), breakpoint 767, `EDGE_INSET` 16, `NAVBAR_CLEARANCE` 84, `CONTENT_MAX_WIDTH` 1280. `applyCompanionSizeCssVar()` syncs the RESTING `--companion-size`. |
+| Sizes/layout constants | `src/lib/companionConfig.ts` | THE single source of truth: desktop **132px** (default/full), mobile **104px**, `COMPANION_SIZE_FIT_FLOOR` **88px** (perch shrink floor), breakpoint 767, `EDGE_INSET` 16, `NAVBAR_CLEARANCE` 84, `CONTENT_MAX_WIDTH` 1280. `applyCompanionSizeCssVar()` syncs the RESTING `--companion-size`. |
 | Legal standing zones | `src/lib/companionZones.ts` | `randomSafePoint` (side gutters, only when viewport ≥ `minViewportForGutterRoaming()` = **1872px** at 132px), `fixedCornerPoint`, **`variedRestPoint`** (no-gutter desktop rest picks a varied x along the bottom band so he actually roams, not corner-pinned), **`bottomStandY(vh,size)`** (= `vh − size + FOOT_OFFSET`, so bottom rests put his VISIBLE feet ON the viewport bottom edge, not floating above), `peekEdgePoint(exposure)`, `offscreenHidePoint`, `targetedAnchorPoint`. **Content is near-full-width — `.page-shell` `padding-inline: clamp(1rem,2vw,1.5rem)` + `.container`/`.container-xxl` `max-width: min(100%, 1760px)`, navbar matches; side margins ~36px (was ~120px). Old empty side gutters are gone — he roams by PERCHING.** Perch/peek are NOT gutter-gated; only plain-roam falls back to gutter (≥1872px) or bottom-band/corner. |
 | DOM perching (primary roam) | `src/lib/companionPerch.ts` | `PERCH_SELECTORS` = `.hero-portrait-wrapper`, `.hero-title` (the big "Hi, I am…" H1), `.section-title`, `.card`. `fitSizeFor(el)` returns the largest size in [88, 132] that fits an element's top border, or null only if even 88 fails — a tight card SHRINKS him instead of being skipped (movement never stops). `findPerchTarget` returns `{el,start,end,size}`; `measurePerchSpan(el, vw, size, vh)` uses `size` for the x-span, FULL size for y. **Text headings (`isTextTarget`: H1/H2/H3/.hero-title/.section-title) get a `TEXT_ASCENT_LIFT_PX` (17) lift** so feet land on the visible letters, not the box top (glyphs overflow ~17px above the box). Stands ABOVE elements, never on content. |
 | Perch fit-scale | `CompanionCharacter` `.companion__scale` + `perchScaleRef` | The shrink is a **bottom-origin CSS `scale` on `.companion__scale`** (transform-origin 50% 100%), eased per-frame toward `perchScaleRef.current` (= `fitSize/132`, set on the perch mission's surface legs). Bottom-origin = **feet stay planted** while he resizes; the container box never changes (resizing a `position:fixed` box drops the feet). **Reset to 1 in `clearMission` AND in `enterIdle` when the mission drains** — so a shrunk scale can NEVER leak into a standing/idle/peek pose (that leak was a real bug). |
@@ -109,7 +109,7 @@ proportions. Any new art/clips must match it — identity drift is a rejection.
 5. **`facing`/`strideRef`/`walkArcRef` stay MotionValue/refs** — syncing them to
    useState would re-render up to 60×/sec.
 6. **Mobile footer reservation** (`App.css` `.site-footer` in the ≤767px block):
-   `padding-bottom: calc(64px + 64px) !important` — the `!important` is required
+   `padding-bottom: calc(104px + 64px) !important` — the `!important` is required
    to beat Bootstrap's `.py-4 !important`, and the first term must equal
    `COMPANION_SIZE_MOBILE`. This is what makes the corner pocket *guaranteed*
    text-free.
@@ -282,8 +282,8 @@ Visual checks are done via Chrome DevTools Protocol against `npm start`:
 
 **Biggest open win — RE-ENCODE THE MASCOT CLIPS (owner's call, awaits go-ahead).**
 `public/assets/mascot/` = **~9.6MB** across 18 WebPs, the dominant payload and
-the #1 mobile-load lever. The clips are 260×360 but display ~76–132px, so they
-oversample 2–4×. A background test (see prior session) confirmed:
+the #1 mobile-load lever. The clips are 260×360 but display ~104–132px, so they
+oversample 2–3×. A background test (see prior session) confirmed:
 - 230px / q68 → **~5.3MB** (−45%, full retina crispness), or
 - 160px / q65 / 8fps → **~3.3MB** (−65%, still no visible loss at ≤132px).
 Do it INSIDE `scripts/normalize_clips.py` (lower CANVAS_H / quality) so the
@@ -510,3 +510,19 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   still holds). He also actively roams the bottom band (11 distinct x, all
   activities: walk/run/jump/peek/dance/stretch/think/doze/exercise). Gates
   green. NOT pushed.
+- **2026-07-19 (mobile size fix + source-clip backup)** — FIXED: Maska Bhai
+  rendered TINY on phones (user: "very very small in mobile view"). Root cause:
+  `COMPANION_SIZE_MOBILE` was 76 in JS, but the `.companion` block in App.css's
+  ≤767px media query hardcoded `--companion-size: 64px`, overriding the JS-set
+  var — so he showed at 64px on every phone. Fix (3 hand-synced spots, per
+  invariant 6–7): (1) `COMPANION_SIZE_MOBILE` 76→**104**; (2) removed the
+  hardcoded `--companion-size: 64px` from the mobile `.companion` block (kept
+  `filter: none`) so JS is the sole source; (3) footer reservation
+  `calc(64px + 64px)`→`calc(104px + 64px)`. CDP-verified at 360/390/430px: all
+  render 104px (24–29% of width, biggest on the narrowest phone but still
+  readable) with **ZERO text overlap** and feet on the bottom edge; 390px
+  screenshot confirms proper on-model size. ALSO: original source clips (19 mp4
+  + SEED png, ~55MB) backed up to **`assets-src/maska bhai/`** (repo root, NOT
+  public/ — CRA would copy public/ into build/ = 55MB dead deploy weight) so
+  every `git clone` carries them; excluded from build (verified 0 mp4 in a fresh
+  build). Gates green. NOT pushed.

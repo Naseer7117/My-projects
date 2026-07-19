@@ -27,7 +27,12 @@ export const EDGE_INSET = 16; // px — never touch the very edge
 // stay pinned to the baseline (resizing the fixed box would drop the feet).
 export const COMPANION_SIZE_DESKTOP = 132; // px — default/full size
 export const COMPANION_SIZE_FIT_FLOOR = 88; // px — smallest he'll shrink to, to fit a tight perch
-export const COMPANION_SIZE_MOBILE = 76; // px
+// 104px — bumped from 76 (which the CSS was overriding to 64, rendering him
+// tiny on phones). This is the SINGLE source of truth: applyCompanionSizeCssVar
+// sets --companion-size from here, and the App.css mobile block no longer
+// hardcodes a conflicting value. Sized to read well on phones while still
+// fitting the reserved bottom-right corner (footer padding is synced to it).
+export const COMPANION_SIZE_MOBILE = 104; // px
 export const COMPANION_MOBILE_BREAKPOINT = 767; // px — matches App.css's max-width: 767px companion block
 
 export function companionSizeFor(viewportWidth: number): number {
