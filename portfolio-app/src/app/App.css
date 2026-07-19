@@ -658,16 +658,15 @@ a:focus {
      (not .page-shell) because Footer renders AFTER page-shell in the DOM
      (see App.tsx) — the true trailing edge of every page is the footer,
      so that's where the guaranteed-empty strip has to live. Sized to the
-     mobile companion footprint (--companion-size: 64px) + its edge inset
+     mobile companion footprint (--companion-size: 104px) + its edge inset
      + a margin. */
   .site-footer {
     /* !important required: Footer.tsx applies Bootstrap's .py-4, which sets
        padding-bottom via !important — without matching it, this rule is
        silently outranked and the "reserved" space never actually exists.
-       64px margin (not 32px) — verified against real measured layouts:
-       sub-pixel layout rounding differences between pages were enough to
-       graze the credit line at a tighter margin. */
-    padding-bottom: calc(64px + 64px) !important;
+       104px = mobile mascot footprint; + 64px margin (verified against real
+       measured layouts — sub-pixel rounding grazed the credit line tighter). */
+    padding-bottom: calc(104px + 64px) !important;
   }
 }
 
@@ -2607,7 +2606,9 @@ hr {
     -webkit-backdrop-filter: blur(7px) saturate(120%);
   }
   .companion {
-    --companion-size: 64px; /* smaller footprint on small screens */
+    /* Size comes from --companion-size set by applyCompanionSizeCssVar (JS,
+       = COMPANION_SIZE_MOBILE) — do NOT hardcode it here or it conflicts with
+       the JS position/perch math. */
     filter: none; /* drop-shadow is a compositor cost the roaming loop pays every move */
   }
 }
