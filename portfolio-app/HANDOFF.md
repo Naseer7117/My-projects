@@ -223,9 +223,10 @@ unusable for this + mid-clip identity drift — regenerate it, seeded).
 
 **Wanted clips** (owner is generating; 15-prompt list was provided to them):
 walk cycle, run cycle, wave, peek (left/right), sit-down/sit-idle, celebrate,
-jump, climb, pointing/talking, high-five, plus extra idle variants. `jump` and
-`climb` PNGs exist but have NO FSM trigger yet — only wire new states if the
-owner asks.
+jump, climb, pointing/talking, high-five, plus extra idle variants. `jump` is
+wired (perch-far-end hop, idle sub). `climb` is now wired too — the mascot
+clambers up the hero portrait's LEFT edge (see the climb-mission changelog entry
+below); only wire further new states if the owner asks.
 
 ## 5. Other shipped features (context)
 
@@ -526,3 +527,120 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   public/ — CRA would copy public/ into build/ = 55MB dead deploy weight) so
   every `git clone` carries them; excluded from build (verified 0 mp4 in a fresh
   build). Gates green. NOT pushed.
+- **2026-07-20 (mobile perch: no more hopping off the text)** — FIXED: on phones
+  the mascot "jumped far, position far upper than the text" instead of standing
+  ON the name (user screenshot: floating in empty space above the hero heading).
+  Root cause: the perch mission ends the top-edge traverse with a `hopping`
+  arrival action — a real jump-arc that lifts the visible pose ~80px off the
+  border (CDP: pose bottom 215→133 during the hop). Playful on a wide desktop
+  heading with whitespace above; on a narrow mobile heading (~334px, mascot
+  104px) the hop launches him well above the letters, and the stop-start
+  `pauseMs` steps look jittery on the short span. Fix (`useCompanionBehavior.ts`
+  perch-mission builder): when `w <= COMPANION_MOBILE_BREAKPOINT`, the far-end
+  leg arrives `'idle'` (no hop) and the traverse is a single leg (`steps = 1`,
+  no pause-steps) — he walks the name calmly and STOPS on it. Desktop keeps the
+  stepped traverse + celebratory hop unchanged. CDP-verified at 393px: feet land
+  at gap **+7px** on the "Hi, I am" line and STAY there (pose bottom pinned at
+  215 = the heading top), no jump to 133; screenshot confirms he stands on the
+  name. Gates green. NOT pushed.
+- **2026-07-20 (climb the photo's left edge like a ladder)** — NEW behavior: the
+  mascot now clambers UP the LEFT border of the hero portrait, playing the climb
+  clip, so it reads as a real ladder climb. The climb clip + `climb` gait +
+  renderer handling all already existed, but NO mission ever produced a vertical
+  leg, so the gait never fired in practice. Added (`companionPerch.ts`):
+  `measureClimbSpan(el)` — a bottom→top vertical span up the element's left edge,
+  container x centred on the edge line and CLAMPED to `EDGE_INSET` so it never
+  hangs off the left viewport edge (on a narrow phone the photo is ~30px from the
+  edge; un-clamped, half of him would climb off-screen); and `findClimbTarget()`
+  — gates on the portrait being tall enough (`climbRun ≥ COMPANION_CLIMB_MIN_
+  VERTICAL_PX`, ~311px mobile / 483px desktop), fully on-screen, border ≥
+  EDGE_INSET from the edge. Wired a CLIMB sub-branch into the perch roll
+  (`useCompanionBehavior.ts`): when a ladder target is on-screen a perch roll has
+  `COMPANION_CLIMB_CHANCE` (0.4) to run ramp→foot→**climb up**→summit hop
+  (`COMPANION_CLIMB_SUMMIT_HOLD_MS`)→**climb down**→settle instead of a top-border
+  traverse. The up/down legs are steep, so requestWalk's existing gait detector
+  auto-selects the climb clip; `onSurface: true` suppresses the hop arc so feet
+  track the edge like rungs. Climb legs are FIXED points (not scroll-re-anchored)
+  — the climb is brief and the hero sits at the top of the page, so no new
+  vertical-axis anchor plumbing was needed. CDP-verified: desktop climb centres
+  EXACTLY on the photo left edge (cxCenter 970 = photoLeft 970), 483px vertical
+  sweep up+down; mobile hugs the border on-screen (clamp working). Gates green.
+  NOT pushed.
+- **2026-07-20 (climb the VISIBLE portion + clip audit)** — REFINED the climb so
+  it actually fires on phones: the first version required the WHOLE portrait
+  on-screen (`rect.bottom <= viewportHeight`), but the 415px photo never fits
+  under the navbar on an 852px phone, so the climb essentially only triggered
+  when deep-scrolled. Per owner ("overlap during movement is fine — his motion
+  matters more than hiding a line of text"), `findClimbTarget`/`measureClimbSpan`
+  now work off the VISIBLE vertical range (new `climbFeetRange`: bottom foot =
+  min(rect.bottom, viewport floor), top foot = max(rect.top, navbar line)) and
+  gate on the ON-SCREEN run (`visibleRun >= COMPANION_CLIMB_MIN_VERTICAL_PX`),
+  not the full height. He climbs whatever chunk of the left edge is visible,
+  overlapping page text on the way (intended). CDP-verified: mobile now climbs
+  at a normal scroll (feet sweep 518→845, 327px, cxCenter 68 hugging photoLeft
+  30); desktop climbs at the top of the page (photo visible there) and stops
+  once it scrolls off. No size shrink — full scale on the open left edge.
+  ALSO — full CLIP AUDIT (subagent trace of every pose trigger): all 19 pose
+  clips are REACHABLE and wired (idle + 6 idle-sub variants, walk, run, climb,
+  jump, pointing/talking, peek×2, sit + sitDown, wave, highfive, celebrate). The
+  3 plain idle subs (blinking/weightShift/smilePulse) intentionally fall back to
+  the base idle loop. Only cosmetic dead code: the `sittingCross` BEHAVIOR value
+  is never triggered (all sit beats use `sitting`), but its `sit` clip is
+  reachable via the normal sitting path — so NO clip is orphaned. Left as-is
+  (harmless; removing it is churn for no behavior change). Gates green. NOT
+  pushed.
+- **2026-07-20 (step-by-step climb + walk rhythm)** — FIXED two motion feel
+  issues the owner flagged: (1) the climb glided up FAST and stalled ~10% short
+  of the top, doing the summit beat mid-edge; (2) walk/climb should read as
+  actual STEPS. Root cause of the short-stop: the climb was ONE spring leg
+  bottom→top; the lazy spring eases out and arrival detection (dist<6 &
+  vel<30) fires before the visual top. Fix — RUNGS: `climbRungs(from,to,rungPx)`
+  (companionPerch) splits the run into ~`COMPANION_CLIMB_RUNG_PX` (46px) legs,
+  the LAST rung's target === the exact top, so he always reaches it and only
+  THERE does the summit hop. Each rung is a short leg with a
+  `COMPANION_CLIMB_RUNG_HOLD_MS` (240ms) grip-pause that HOLDS the climb pose
+  (new mission-step `pauseGait`, honored in consumeMissionStep — a rung-pause
+  now shows the climb clip, not idle-in-mid-air). Short rungs are <220px so the
+  auto steep-check would mislabel them 'walk' — new `WalkRequest.forceGait`
+  pins 'climb' per leg. Walk traverse: re-enabled STEPPING on mobile too (was
+  1 leg after the earlier text-perch fix) with a 0.6× smaller mobile step so a
+  narrow heading still gets a few gentle steps (far-end hop still dropped on
+  mobile); traverse step-hold 550→**320ms** so it reads as a walking rhythm,
+  not full stops. CDP-verified (desktop): climb shows 10 distinct stop-go
+  plateaus over a 442px run, highest feet 226 vs photoTop 170 (feet AT the top),
+  summit hop fires at the top; screenshot confirms he ends at the top-left
+  corner. Walk traverse shows ~19 x-plateaus (real step-stop-step). Gates green.
+  NOT pushed.
+- **2026-07-20 (climb border alignment)** — FIXED: while climbing he sat INSIDE
+  the photo (owner: "not at the border properly, going inside the image area").
+  Root cause: `measureClimbSpan` put the CONTAINER centre on the left-edge line,
+  but the visible art is centred in the container, so his BODY centre landed on
+  the border — half his body inside the image (CDP: art 924→1016, border 970 →
+  46px inside). Fix: align by the VISIBLE art (width = `full × COMPANION_POSE_
+  ASPECT`), placing its RIGHT edge `CLIMB_BORDER_OVERLAP` (6px) past the border
+  so he hugs the edge from OUTSIDE with just his grip on the frame; clamped to
+  EDGE_INSET so the container never runs off-screen. CDP-verified desktop: art
+  881→975 vs border 970 — only 5px into the image, body centre (928) in the
+  gutter (screenshot: he stands just outside the frame, ladder-style). Mobile:
+  the 30px gutter is thinner than he is (~75px), so full outside-fit is
+  impossible — he now hugs with his LEFT edge on the border (imgLeft 32 vs
+  photoLeft 30) instead of bisected by it, the best the geometry allows (and
+  movement-overlap is acceptable per prior owner guidance). Gates green. NOT
+  pushed.
+- **2026-07-20 (climb aborts on scroll — page-state awareness)** — FIXED: if the
+  user scrolled mid-climb, the mascot kept clambering in mid-air over whatever
+  scrolled into view (owner screenshot: still climbing on a stats card after
+  scrolling to the bottom). Root cause: climb RUNGS are fixed points (a vertical
+  clamber can't cheaply scroll-re-anchor like a horizontal top-edge perch, which
+  DOES track scroll via `anchorEl`/`measurePerchSpan`), so the photo moved out
+  from under them but the mission ran on. Fix: a climb mission now records its
+  photo element (`missionClimbElRef`, cleared in `clearMission`), and the scroll
+  handler aborts the ENTIRE climb on ANY scroll while climbing —
+  `clearMission` + walk to a fresh `pickStandingPoint()` for the new page state.
+  (Any scroll, not just "photo fully gone": even a small shift makes fixed climb
+  points stale, and a committed vertical clamber over a moving photo always reads
+  wrong.) CDP-verified: scroll-to-bottom mid-climb → climb clip drops to idle
+  within ~250ms, he walks from the stale spot (cx 928→459) to the bottom edge and
+  settles; ZERO frames climbing over the off-screen photo; screenshot shows him
+  resting by the footer. Perch top-edge traverse was already scroll-anchored, so
+  only the climb needed this. Gates green. NOT pushed.

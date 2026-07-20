@@ -15,8 +15,18 @@
  *     to the border even while the page moves under it;
  *   - pointer-events stay off — the mascot can never block a click.
  */
-import { COMPANION_PERCH_TRAVERSE_MIN_PX, COMPANION_PERCH_FOOT_OFFSET_PX } from 'lib/constants';
-import { companionSizeFor, COMPANION_SIZE_FIT_FLOOR, NAVBAR_CLEARANCE, EDGE_INSET } from 'lib/companionConfig';
+import {
+  COMPANION_PERCH_TRAVERSE_MIN_PX,
+  COMPANION_PERCH_FOOT_OFFSET_PX,
+  COMPANION_CLIMB_MIN_VERTICAL_PX,
+} from 'lib/constants';
+import {
+  companionSizeFor,
+  COMPANION_SIZE_FIT_FLOOR,
+  NAVBAR_CLEARANCE,
+  EDGE_INSET,
+  COMPANION_POSE_ASPECT,
+} from 'lib/companionConfig';
 import { Point } from 'lib/companionZones';
 
 export type PerchSpan = {
@@ -133,6 +143,101 @@ export function measurePerchSpan(
     start: { x: rect.left - inset, y },
     end: { x: rect.right - full + inset, y },
   };
+}
+
+/** The on-screen bottom/top FEET positions (in viewport y) of the walkable
+ * left-edge ladder — clamped to the visible band so a photo that runs off the
+ * viewport (common on phones, where the tall portrait rarely fits whole) is
+ * still climbable over its VISIBLE portion. Bottom foot = min(rect.bottom,
+ * viewport floor); top foot = max(rect.top, navbar line). The mascot may
+ * overlap page content on the way — that's intended (movement matters more
+ * than hiding a line of text), and he stands on the border, never on the
+ * element's own content. */
+function climbFeetRange(
+  rect: DOMRect,
+  full: number,
+  viewportHeight: number
+): { bottomFeet: number; topFeet: number } {
+  const bottomFeet = Math.min(rect.bottom, viewportHeight - EDGE_INSET);
+  const topFeet = Math.max(rect.top, NAVBAR_CLEARANCE + full);
+  return { bottomFeet, topFeet };
+}
+
+/** A vertical LADDER span up an element's LEFT edge, bottom → top, in mascot
+ * container coords — for the climb gait (he clambers up the side of the photo).
+ * He straddles the border: container x centres him on the element's left-edge
+ * line (like gripping a ladder), CLAMPED so the container never hangs off the
+ * left viewport edge (on a narrow phone the photo sits close to the edge, so an
+ * un-clamped straddle would push half of him off-screen — he'd read as climbing
+ * mid-air). y runs over the VISIBLE portion of the edge (see climbFeetRange), so
+ * a partly-scrolled photo still gives a real climb. Returned bottom-first
+ * because a climb starts low and goes up. Full container size (no fit-shrink —
+ * the climb clip reads best at full scale). */
+export function measureClimbSpan(
+  el: Element,
+  viewportWidth: number,
+  viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+): { bottom: Point; top: Point } {
+  const full = companionSizeFor(viewportWidth);
+  const rect = el.getBoundingClientRect();
+  // Align so he HUGS the border from OUTSIDE (climbs the edge like a ladder),
+  // not straddling its centre — putting the container centre on the line left
+  // half his BODY inside the image. The visible art is `full × POSE_ASPECT`
+  // wide, centred in the full-width container, so its right edge sits
+  // (full + visibleW)/2 in from the container left. We place the container so
+  // that visible RIGHT edge lands CLIMB_BORDER_OVERLAP px past the border (his
+  // gripping side just touches the frame). Clamped so the container never runs
+  // off the left viewport edge — on a narrow phone the gutter is thinner than
+  // he is, so some overlap into the image is unavoidable, but he's pushed as
+  // far left (onto the edge) as fits rather than centred on the line.
+  const visibleW = full * COMPANION_POSE_ASPECT;
+  const CLIMB_BORDER_OVERLAP = 6; // px of grip past the border
+  const x = Math.max(EDGE_INSET, rect.left + CLIMB_BORDER_OVERLAP - (full + visibleW) / 2);
+  const { bottomFeet, topFeet } = climbFeetRange(rect, full, viewportHeight);
+  // Container top = feet y − full; the feet render at the container bottom.
+  return {
+    bottom: { x, y: bottomFeet + COMPANION_PERCH_FOOT_OFFSET_PX - full },
+    top: { x, y: topFeet + COMPANION_PERCH_FOOT_OFFSET_PX - full },
+  };
+}
+
+/** Split a vertical climb (from → to) into evenly-spaced RUNG points of ~rungPx
+ * each, so the climb reads as step-by-step ladder work instead of one fast
+ * spring glide. Returns the intermediate points EXCLUDING the start and
+ * INCLUDING the exact end, so the final rung always lands on `to` (he reaches
+ * the real top — no settling ~10% short). Works both directions (up or down):
+ * the sign of (to.y − from.y) is preserved. `from`/`to` share an x. */
+export function climbRungs(from: Point, to: Point, rungPx: number): Point[] {
+  const dist = Math.abs(to.y - from.y);
+  const n = Math.max(1, Math.round(dist / Math.max(1, rungPx)));
+  const rungs: Point[] = [];
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    rungs.push({ x: to.x, y: from.y + (to.y - from.y) * t });
+  }
+  return rungs; // last entry === to
+}
+
+/** Whether an element is a LADDER worth climbing up its left edge (rather than
+ * only walking its top). Needs enough VISIBLE vertical run for the climb gait to
+ * trigger and read (COMPANION_CLIMB_MIN_VERTICAL_PX over the on-screen portion —
+ * the whole photo need NOT fit, so it stays climbable at normal mobile scroll),
+ * and its left border far enough from the viewport edge that the clamped
+ * straddle still hugs the border rather than pinning to the screen edge. The
+ * hero portrait is the intended target. */
+export function findClimbTarget(viewportWidth: number, viewportHeight: number): Element | null {
+  if (typeof document === 'undefined') return null;
+  const full = companionSizeFor(viewportWidth);
+  const el = document.querySelector('.hero-portrait-wrapper');
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  const { bottomFeet, topFeet } = climbFeetRange(rect, full, viewportHeight);
+  const visibleRun = bottomFeet - topFeet; // vertical travel over the ON-SCREEN portion
+  if (visibleRun < COMPANION_CLIMB_MIN_VERTICAL_PX) return null; // too little on-screen to read as a climb
+  // The border must be at least EDGE_INSET from the viewport edge, else the
+  // clamped straddle sits ON the screen edge, not on the photo border.
+  if (rect.left < EDGE_INSET) return null;
+  return el;
 }
 
 /** Pick a random perchable element on screen, shrinking the mascot to fit a
