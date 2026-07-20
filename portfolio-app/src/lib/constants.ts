@@ -154,13 +154,31 @@ export const COMPANION_PEEK_RELOCATE_SETTLE_MS = 350; // ms fully hidden before 
 // target falls to plain roam, never silently into peek.
 export const COMPANION_PERCH_CHANCE = 0.7; // walk-on-a-border is the default idle stroll
 export const COMPANION_PEEK_CHANCE = 0.15; // true edge peek (disjoint slice above the perch window)
+// When a tall LADDER target (the hero portrait) is on-screen, a perch roll has
+// this chance to CLIMB its left edge (bottom→top, playing the climb clip) INSTEAD
+// of walking a top border — a special-cased sub-branch of the perch window, so
+// it never steals from the peek/roam budget. The rest of a perch roll is the
+// normal top-border traverse.
+export const COMPANION_CLIMB_CHANCE = 0.4; // of perch rolls that have a ladder target on-screen
+// How long he holds at the TOP of a climb before descending (a "made it up" beat).
+export const COMPANION_CLIMB_SUMMIT_HOLD_MS = 1400;
+// The climb is broken into RUNGS so it reads as step-by-step ladder climbing
+// rather than one fast glide (a single spring leg eases out and settles ~10%
+// short of the top before the summit beat). Each rung is ~this many px of
+// vertical travel, with a brief grip-hold before the next. Smaller rung + hold
+// = more deliberate, ladder-like. The LAST rung's target is exactly the top, so
+// he always reaches it.
+export const COMPANION_CLIMB_RUNG_PX = 46; // px vertical per rung (≈ a couple of ladder steps)
+export const COMPANION_CLIMB_RUNG_HOLD_MS = 240; // grip-pause before each rung
 export const COMPANION_PERCH_TRAVERSE_MIN_PX = 120; // px — skip targets whose walkable top edge is narrower than this
 // Traversing a wide element (e.g. the hero heading) is broken into steps of
 // this many px so he visibly WALKS across the whole thing — a single spring
 // leg over a long span darts across too fast to read. Each step pauses
 // briefly so it reads as walk-stop-walk along the letters.
 export const COMPANION_TRAVERSE_STEP_PX = 170;
-export const COMPANION_TRAVERSE_STEP_HOLD_MS = 550;
+// Shorter hold reads as a walking rhythm (step-pause-step), not a series of
+// full stops — the owner wants it to look like he's actually taking steps.
+export const COMPANION_TRAVERSE_STEP_HOLD_MS = 320;
 // Feet-planting correction: the clip crops carry ~8px of transparent padding
 // under the feet plus the ground shadow, so standing exactly at
 // (top - size) reads as hovering. Sinking the container this many px makes

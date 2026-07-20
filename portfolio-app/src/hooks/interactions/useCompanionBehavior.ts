@@ -10,7 +10,15 @@ import {
   offscreenHidePoint,
   Point,
 } from '../../lib/companionZones';
-import { findPerchTarget, measurePerchSpan, perchApproachSide, gutterRampPoint } from '../../lib/companionPerch';
+import {
+  findPerchTarget,
+  measurePerchSpan,
+  perchApproachSide,
+  gutterRampPoint,
+  findClimbTarget,
+  measureClimbSpan,
+  climbRungs,
+} from '../../lib/companionPerch';
 import { companionSizeFor, COMPANION_SIZE_DESKTOP, COMPANION_MOBILE_BREAKPOINT } from '../../lib/companionConfig';
 import {
   COMPANION_BEHAVIOR_MIN_MS,
@@ -34,6 +42,10 @@ import {
   COMPANION_PEEK_CHANCE,
   COMPANION_TRAVERSE_STEP_PX,
   COMPANION_TRAVERSE_STEP_HOLD_MS,
+  COMPANION_CLIMB_CHANCE,
+  COMPANION_CLIMB_SUMMIT_HOLD_MS,
+  COMPANION_CLIMB_RUNG_PX,
+  COMPANION_CLIMB_RUNG_HOLD_MS,
   COMPANION_NAP_AFTER_MS,
   COMPANION_NAP_RECHECK_MS,
   COMPANION_WAKE_REACTION_SUB,
@@ -132,6 +144,10 @@ export type WalkRequest = {
   expression?: CompanionExpression;
   /** How long to hold the arrival action before falling back to idle (ms). Ignored when arrival === 'idle'. */
   holdMs?: number;
+  /** Force a specific gait clip regardless of the leg's distance/steepness.
+   * Needed for climb RUNGS: each rung is short (~46px) so the auto steep-check
+   * (needs >220px vertical) would pick 'walk' — this pins it to 'climb'. */
+  forceGait?: CompanionGait;
 };
 
 /** Per-frame walk-arc telemetry for the renderer's VISUAL hop-arc layer
@@ -302,6 +318,10 @@ export function useCompanionBehavior(): CompanionState {
         /** Pause (ms) to hold BEFORE starting this leg — spaces out the stepped
          * traverse so he reads as walk-stop-walk across a wide element. */
         pauseMs?: number;
+        /** Which behavior/gait to HOLD during pauseMs. Default 'idle' (a plain
+         * stop). For a climb, hold 'climbing' so a rung-pause reads as gripping
+         * the ladder mid-climb, not standing idle mid-air. */
+        pauseGait?: CompanionGait;
       }
     | { kind: 'relocate' };
   const missionRef = useRef<MissionStep[]>([]);
@@ -317,6 +337,14 @@ export function useCompanionBehavior(): CompanionState {
   /** The fit size (px) of the active anchored leg — the scroll re-anchor
    * re-measures the span at this size so start/end x stay correct. */
   const missionSizeRef = useRef(COMPANION_SIZE_DESKTOP);
+  /** The element a CLIMB mission depends on staying on-screen. Climb legs are
+   * fixed points (a vertical clamber can't cheaply scroll-re-anchor like a
+   * horizontal top-edge perch), so if the user scrolls the photo away mid-climb
+   * the climb would carry on in empty space (owner: "he kept climbing on a card
+   * after I scrolled"). While this is set, the scroll handler ABORTS the mission
+   * the moment the element leaves the climbable band, and he settles somewhere
+   * valid. Null for non-climb missions. */
+  const missionClimbElRef = useRef<Element | null>(null);
 
   /** True from the moment a mission's first step is consumed until the whole
    * queue drains (including the relocate settle, when missionRef is already
@@ -328,6 +356,7 @@ export function useCompanionBehavior(): CompanionState {
   const clearMission = useCallback(() => {
     missionRef.current = [];
     missionAnchorRef.current = null;
+    missionClimbElRef.current = null;
     suppressArcRef.current = false;
     perchScaleRef.current = 1; // restore full size on any teardown
     missionActiveRef.current = false;
@@ -359,10 +388,17 @@ export function useCompanionBehavior(): CompanionState {
         missionStepInFlightRef.current = false;
       };
       if (step.pauseMs && step.pauseMs > 0) {
-        // Hold in place (idle-looking) before this leg, so the stepped
-        // traverse reads as walk-STOP-walk. clearPhaseTimeout on any
-        // pre-emption cancels this pending leg cleanly.
-        setBehavior('idle');
+        // Hold before this leg so the stepped traverse reads as stop-go.
+        // Default hold is a plain idle stop; a climb rung instead HOLDS the
+        // climb pose (pauseGait 'climb') so the grip-pause looks like he's
+        // clinging to the ladder mid-climb, not standing idle in mid-air.
+        // clearPhaseTimeout on any pre-emption cancels this pending leg cleanly.
+        if (step.pauseGait) {
+          setGait(step.pauseGait);
+          setBehavior('walking');
+        } else {
+          setBehavior('idle');
+        }
         phaseTimeoutRef.current = window.setTimeout(startLeg, step.pauseMs);
       } else {
         startLeg();
@@ -568,12 +604,13 @@ export function useCompanionBehavior(): CompanionState {
         Math.abs(planDy) > COMPANION_CLIMB_MIN_VERTICAL_PX &&
         Math.abs(planDy) > Math.abs(planDx) * COMPANION_CLIMB_VERTICAL_RATIO;
       setGait(
-        isSteep
-          ? 'climb'
-          : Math.sqrt(planDx * planDx + planDy * planDy) >
-              window.innerWidth * COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION
-            ? 'run'
-            : 'walk'
+        req.forceGait ?? // caller pins the gait (climb rungs are short — auto-steep would miss them)
+          (isSteep
+            ? 'climb'
+            : Math.sqrt(planDx * planDx + planDy * planDy) >
+                window.innerWidth * COMPANION_RUN_DISTANCE_VIEWPORT_FRACTION
+              ? 'run'
+              : 'walk')
       );
       fsmPhaseRef.current = 'anticipation';
       setBehavior('anticipation');
@@ -684,6 +721,57 @@ export function useCompanionBehavior(): CompanionState {
       // width and the old side gutters are gone.
       const perch = findPerchTarget(w, h);
 
+      // CLIMB MISSION (special-cased sub-branch of the perch window): when the
+      // tall hero portrait is on-screen, sometimes clamber UP its LEFT edge like
+      // a ladder instead of walking a top border. The vertical leg is steep, so
+      // requestWalk's gait detector auto-plays the climb clip; onSurface: true
+      // suppresses the hop arc so his feet track the edge like rungs. Fixed
+      // points (not scroll-re-anchored) — the climb is brief and the hero sits
+      // at the top of the page. Ramp to the bottom-left corner, climb to the
+      // top-left corner, hold a "made it up" beat, then descend and settle.
+      const climbEl = roll < COMPANION_PERCH_CHANCE ? findClimbTarget(w, h) : null;
+      if (climbEl && Math.random() < COMPANION_CLIMB_CHANCE) {
+        const { bottom, top } = measureClimbSpan(climbEl, w, h);
+        const groundRamp = gutterRampPoint('left', bottom.y, w);
+        // Break the vertical run into RUNGS so it reads as deliberate,
+        // step-by-step ladder climbing (a single spring leg eases out and
+        // stalls ~10% short before the summit beat — the "climbs fast then
+        // stops early" bug). Each rung is a short steep leg (climb gait), with
+        // a grip-hold BEFORE it that holds the climb pose (pauseGait 'climb').
+        // The LAST up-rung === top, so he always reaches the real top; only
+        // there does he do the summit hop.
+        const upRungs = climbRungs(bottom, top, COMPANION_CLIMB_RUNG_PX);
+        const downRungs = climbRungs(top, bottom, COMPANION_CLIMB_RUNG_PX);
+        const climbLeg = (target: Point, isFirst: boolean, summit: boolean): MissionStep => ({
+          kind: 'walk',
+          req: summit
+            ? { target, arrival: 'hopping', expression: 'happy', holdMs: COMPANION_CLIMB_SUMMIT_HOLD_MS, forceGait: 'climb' }
+            : { target, arrival: 'idle', forceGait: 'climb' }, // short rung — pin climb (auto steep-check needs >220px)
+          onSurface: true,
+          // No grip-hold before the very first rung (he's just stepped onto the
+          // ladder); every later rung pauses gripping the ladder.
+          pauseMs: isFirst ? undefined : COMPANION_CLIMB_RUNG_HOLD_MS,
+          pauseGait: 'climb',
+        });
+        missionRef.current = [
+          { kind: 'walk', req: { target: groundRamp, arrival: 'idle' } },
+          { kind: 'walk', req: { target: bottom, arrival: 'idle' } }, // step to the foot of the ladder
+          // Climb UP rung by rung; the final rung lands on the top and hops.
+          ...upRungs.map((pt, i) =>
+            climbLeg(pt, i === 0, i === upRungs.length - 1 /* summit on the last */)
+          ),
+          // Climb back DOWN rung by rung, then walk off and settle.
+          ...downRungs.map((pt, i) => climbLeg(pt, i === 0, false)),
+          { kind: 'walk', req: { target: pickStandingPoint(), arrival: 'idle' } },
+        ];
+        // Bind the mission to the photo: if the user scrolls it out of the
+        // climbable band, the scroll handler aborts the climb (else he'd carry
+        // on clambering in empty space over whatever scrolled into view).
+        missionClimbElRef.current = climbEl;
+        consumeMissionStep();
+        return;
+      }
+
       // PERCH MISSION (the default idle stroll when a target is on-screen):
       // ramp in from the side -> step onto the border's near end -> traverse
       // the top edge -> hop -> ramp off -> settle. Surface legs suppress the
@@ -705,8 +793,18 @@ export function useCompanionBehavior(): CompanionState {
         // with a short pause, so he walk-stops-walks along the letters. Only
         // the first (near) and last (far) legs re-anchor to the live element
         // ends; intermediate steps are fixed points (the traverse is brief).
+        //
+        // STEP-BY-STEP traverse (owner wants the walk to read as real steps, not
+        // a glide). The wide element is crossed in short legs each with a
+        // grip-pause, so he walk-stops-walks. MOBILE keeps two adjustments: the
+        // far-end HOP is dropped (on a narrow heading it launched him off the
+        // letters — "jumping far off the text"), and the step size is smaller so
+        // even a short heading span still gets a few gentle steps rather than
+        // one dart. He still STOPS on the far end (arrival 'idle') feet planted.
+        const isMobile = w <= COMPANION_MOBILE_BREAKPOINT;
+        const stepPx = isMobile ? COMPANION_TRAVERSE_STEP_PX * 0.6 : COMPANION_TRAVERSE_STEP_PX;
         const span = Math.abs(farEnd.x - nearEnd.x);
-        const steps = Math.max(1, Math.round(span / COMPANION_TRAVERSE_STEP_PX));
+        const steps = Math.max(1, Math.round(span / stepPx));
         const surfaceLegs: MissionStep[] = [
           { kind: 'walk', req: { target: nearEnd, arrival: 'idle' }, anchorEl: perch.el, anchorAim: nearAim, onSurface: true, perchScale: scale, perchSize: perch.size },
         ];
@@ -717,7 +815,15 @@ export function useCompanionBehavior(): CompanionState {
           // across the letters instead of one fast dart.
           surfaceLegs.push({ kind: 'walk', req: { target: mid, arrival: 'idle' }, onSurface: true, perchScale: scale, perchSize: perch.size, pauseMs: COMPANION_TRAVERSE_STEP_HOLD_MS });
         }
-        surfaceLegs.push({ kind: 'walk', req: { target: farEnd, arrival: 'hopping', expression: 'happy' }, anchorEl: perch.el, anchorAim: farAim, onSurface: true, perchScale: scale, perchSize: perch.size });
+        surfaceLegs.push({
+          kind: 'walk',
+          req: { target: farEnd, arrival: isMobile ? 'idle' : 'hopping', expression: 'happy' },
+          anchorEl: perch.el,
+          anchorAim: farAim,
+          onSurface: true,
+          perchScale: scale,
+          perchSize: perch.size,
+        });
 
         missionRef.current = [
           { kind: 'walk', req: { target: ramp, arrival: 'idle' } },
@@ -786,6 +892,24 @@ export function useCompanionBehavior(): CompanionState {
   useEffect(() => {
     if (!enabled) return;
     const onScroll = () => {
+      // CLIMB abort: a climb is bound to the photo but its rung legs are fixed
+      // points (a vertical clamber can't cheaply scroll-re-anchor like a
+      // horizontal top-edge perch). Any scroll moves the photo out from under
+      // the fixed climb points, so the clamber would carry on in mid-air over
+      // whatever scrolled into view (owner: "he kept climbing on a card after I
+      // scrolled to the bottom"). So on ANY scroll during a climb, cancel the
+      // whole mission and walk to a valid standing point for the NEW page state.
+      // Checked before the perch re-anchor below.
+      if (missionClimbElRef.current) {
+        const phase = fsmPhaseRef.current;
+        if (phase === 'walking' || phase === 'arrived' || phase === 'anticipation') {
+          clearMission();
+          clearPhaseTimeout();
+          activeWalkRef.current = null;
+          requestWalkRef.current({ target: pickStandingPoint(), arrival: 'idle' });
+          return;
+        }
+      }
       const el = missionAnchorRef.current;
       if (!el) return;
       const phase = fsmPhaseRef.current;
@@ -798,7 +922,7 @@ export function useCompanionBehavior(): CompanionState {
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, [enabled, targetX, targetY]);
+  }, [enabled, targetX, targetY, clearMission, clearPhaseTimeout]);
 
   // --- peek duck-away: while actually holding a peek, a cursor that comes
   // close (or any scroll) cuts the hold short — enterIdle then consumes the
