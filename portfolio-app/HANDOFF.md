@@ -644,3 +644,73 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   settles; ZERO frames climbing over the off-screen photo; screenshot shows him
   resting by the footer. Perch top-edge traverse was already scroll-anchored, so
   only the climb needed this. Gates green. NOT pushed.
+- **2026-07-20 (mobile climb alignment — edge-line fallback)** — FIXED: on real
+  phones the climb-alignment fix still put him INSIDE the image. The desktop fix
+  aimed his visible RIGHT edge just past the border (body fully in the gutter),
+  clamped to EDGE_INSET — but the phone gutter (~30px) is far thinner than he is
+  (~75px visible), so the clamp centred his body inside the photo. Physically he
+  can't stand fully outside on mobile. Owner chose (AskUserQuestion) "climb on
+  the border line with some overlap." Fix (`measureClimbSpan`): two regimes —
+  wide gutter keeps the outside-hug (visible right edge 6px past the border,
+  body in the gutter); narrow gutter falls back to the visible LEFT edge exactly
+  ON the border line (`edgeLineX = rect.left − (full−visibleW)/2`), so he
+  overlaps into the image but clearly climbs the EDGE instead of being centred
+  inside it. CDP-verified mobile (393): visible left edge 31 vs photoLeft 30
+  (leftEdgeVsBorder = 1px); screenshot confirms he hugs the left border. Desktop
+  unchanged (outside-hug: art 881→975 vs border 970). Gates green. NOT pushed.
+- **2026-07-20 (shrink mobile hero photo → open the climb gutter)** — Instead of
+  accepting the mobile overlap above, the owner asked to make the PHOTO smaller
+  so the mascot gets real gutter to climb OUTSIDE the border. Design (workflow +
+  live CDP modeling): the outside-hug needs the photo's left edge ≥ ~100px from
+  the screen edge (`measureClimbSpan` outsideHugX threshold, mobile full=104 /
+  visW=75). Photo was full-width (~30px gutter). A CSS-only cap does it — added
+  in the ≤767px block (`App.css` ~1574):
+  `.hero-portrait-wrapper, .hero-sidebar .hero-quick-card { width:100%;
+  max-width:260px; margin-inline-start:auto; }`. **`width:100%` is REQUIRED** —
+  `.hero-sidebar` is a flex COLUMN, so a bare `max-width` child shrinks to
+  min-content (collapsed the photo to 12px in testing). Right-align pools the
+  freed space on the LEFT (the climb side); the Quick-paths card is capped to
+  match so the column stays aligned. Height auto-follows via aspect-ratio 4/5
+  (~316-322px, well over the 220px climb-run floor). CDP-verified: 390px+ phones
+  now get 100-124px left gutter → mascot hugs FULLY OUTSIDE (body right edge 5px
+  past the border, bodyOutside=true, screenshot confirms); 360/375px get 73-88px
+  → overlap cut from ~45px to ~6-13px (full hug not geometrically possible on the
+  smallest phones without dropping the photo below the climb floor — 260px is the
+  sweet spot). Climb still fires on all phones. Desktop/tablet untouched (cap is
+  ≤767px only; verified maxW:none at 768/1024/1440). Gates green. NOT pushed.
+- **2026-07-26 (pre-production adversarial bug hunt — 3 real bugs fixed)** — Ran a
+  parallel finder + independent-verifier review of the whole mascot FSM. 3 real
+  bugs survived verification (1 refuted):
+  1. **Climb scroll-abort missed 'recovery' + grip-pause 'idle' phases** (HIGH,
+     `useCompanionBehavior.ts` scroll handler). The abort added earlier only fired
+     for phase `walking`/`arrived`/`anticipation`, but a STEPPED climb spends ~half
+     its time BETWEEN rungs (recovery 260ms + grip-pause 240ms, phases
+     'recovery'/'idle'). Scrolling in those gaps skipped the abort → the pending
+     rung timer resumed onto the scrolled-away photo (the very bug the abort was
+     meant to fix, reintroduced by the rung-stepping change). Fix: dropped the
+     phase whitelist entirely — abort on ANY scroll while `missionClimbElRef` is
+     set; `clearPhaseTimeout` cancels the pending rung timer. Verified: climb
+     switches to walk/idle within one crossfade (~0.5s) in all phases; no more
+     advancing to new rungs over off-screen content.
+  2. **Abort walk-away could replay the climb clip** (MEDIUM, same spot). The
+     escape walk to a standing point could be steep → auto-gait re-picked 'climb'
+     → "climbing down through empty space." Fix: `forceGait: 'walk'` on the abort
+     walk.
+  3. **Perch traverse mid-step legs walked to STALE points on scroll** (HIGH,
+     pre-existing). The stepped top-edge traverse's intermediate legs were fixed
+     points with no `anchorEl` (only near/far legs re-anchored), so scrolling
+     mid-traverse sent him to stale coordinates. Fix: mid-steps now carry
+     `anchorEl` + a new `anchorFrac` (0..1 along the span); the scroll re-anchor
+     lerps the freshly-measured start/end at that fraction (new
+     `missionAnchorFracRef`, reset in `clearMission`). Verified: after an 80px
+     scroll his feet re-settle to 10-24px from the moved card top.
+  Residual (NOT a bug, left as-is): after a climb-abort the climb CLIP lingers
+  ~0.5s as it crossfades (COMPANION_POSE_CROSSFADE_S 150ms + 220ms anticipation)
+  — the mission is genuinely aborted (no new rungs), only the pose fades out;
+  hard-cutting the crossfade is more complexity than the off-screen visual gain.
+  Full gate suite green + production-build smoke test (mascot mounts, poses load,
+  ZERO console errors / network failures, survives 5-route tour, reduced-motion
+  hides him) on both mobile+desktop. NOT pushed.
+- **Verify infra note:** if 9333/dev server are down, relaunch: `BROWSER=none
+  npm start` + headless isolated Chrome (`chrome.exe --remote-debugging-port=9333
+  --user-data-dir=<scratch> --no-first-run --headless=new`). Never 9222.

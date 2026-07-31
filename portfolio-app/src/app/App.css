@@ -1571,6 +1571,23 @@ h1, h2, h3, h4, h5, h6 {
   .hero-stats {
     margin-top: 1rem;
   }
+  /* Cap + right-align the hero photo on phones so the freed space pools on the
+     LEFT edge — that's the gutter the mascot climbs up like a ladder. Full-width
+     (~30px gutter) forced him to climb INSIDE the image; 260px right-aligned
+     opens ~90-100px on the left so he hugs the border from outside on
+     mainstream phones (390px+), minimal overlap on the narrowest. Height
+     auto-follows via aspect-ratio 4/5 (~325px, well over the climb's 220px
+     visible-run floor). DO NOT remove — see HANDOFF (measureClimbSpan
+     outsideHugX threshold). The Quick-paths card below is capped to match so
+     the column stays aligned. */
+  .hero-portrait-wrapper,
+  .hero-sidebar .hero-quick-card {
+    width: 100%; /* .hero-sidebar is a flex COLUMN — without an explicit width a
+                    max-width child shrinks to min-content (collapses). width:100%
+                    fills up to the cap, then margin-inline-start:auto right-aligns. */
+    max-width: 260px;
+    margin-inline-start: auto;
+  }
 }
 
 @media (max-width: 400px) {
