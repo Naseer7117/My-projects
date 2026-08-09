@@ -43,12 +43,22 @@ export type PerchSpan = {
 };
 
 /** Selectors worth standing on, in priority order. Broad on purpose — the
- * visibility + width filters below do the real gatekeeping. */
+ * owner wants the mascot to walk EVERYWHERE there's text (headings, paragraphs,
+ * list items, labels), overlapping it if needed — so this now covers body text
+ * too, not just chrome borders. The visibility + width filters below do the
+ * real gatekeeping (an element too narrow/off-screen is skipped, never the
+ * mascot getting stuck). Duplicate matches across selectors are fine — a
+ * candidate that matches two just gets two entries in the random pick. */
 const PERCH_SELECTORS = [
   '.hero-portrait-wrapper', // profile image border (home)
   '.hero-title', // the big "Hi, I am Naseeruddin Shaik" hero heading (home)
   '.section-title', // section headings (h2)
   '.card', // skill / project / contact cards
+  // Text everywhere: every heading level, paragraphs, list items, and the
+  // small labels/leads that make up the body copy across all sections.
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'p', 'li',
+  '.lead', '.pill-label', '.hero-metric', '.quick-link', '.timeline-item',
 ];
 
 /** How far a text heading's visible glyphs overflow ABOVE its box top (the
@@ -58,17 +68,12 @@ const PERCH_SELECTORS = [
  * box top, so they get 0. */
 const TEXT_ASCENT_LIFT_PX = 17;
 
-/** Whether an element's perch line should hug its VISIBLE TEXT top (headings)
- * rather than its box top (cards, image borders). */
+/** Whether an element's perch line should hug its VISIBLE TEXT top (any text:
+ * headings, paragraphs, list items, labels) rather than its box top (cards,
+ * image borders). Text glyphs overflow ~TEXT_ASCENT_LIFT_PX above the line box,
+ * so text targets lift the perch to seat the feet on the letters. */
 function isTextTarget(el: Element): boolean {
-  const tag = el.tagName;
-  return (
-    tag === 'H1' ||
-    tag === 'H2' ||
-    tag === 'H3' ||
-    el.classList.contains('hero-title') ||
-    el.classList.contains('section-title')
-  );
+  return /^(H[1-6]|P|LI|SPAN|A|SMALL)$/.test(el.tagName) || el.classList.contains('hero-title');
 }
 
 /** The mascot's y when standing ON an element's top border. The container box

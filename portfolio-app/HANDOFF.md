@@ -711,6 +711,28 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   Full gate suite green + production-build smoke test (mascot mounts, poses load,
   ZERO console errors / network failures, survives 5-route tour, reduced-motion
   hides him) on both mobile+desktop. NOT pushed.
+- **2026-08-01 (long-scroll Home landing + separate pages coexist)** — Owner
+  wanted the HOME page to scroll through ALL sections top-to-bottom, while the
+  nav buttons STILL load each section as its own standalone page (both modes).
+  Lazy impl (reuse, no new components): `app/routes.tsx` `home` renderer now
+  returns the hero (`<HomePage>`) followed by `<AboutPage>/<SkillsPage>/
+  <ProjectsPage>/<ContactPage>` stacked, each wrapped in `<section id="home-*">`
+  (prefixed so the ids never collide with the router's own `#about`/… hashes).
+  The other four renderers are unchanged, so clicking a nav button still routes
+  to the standalone page. One shared gotcha handled: each page fires a mascot
+  `useCompanionContextBeat` ON MOUNT; five at once on Home would stomp each other
+  (last-write-wins), so a new optional `beatEnabled` prop (default true → stand-
+  alone pages unchanged) is passed `false` for the stacked copies. The mascot
+  still roams the whole scroll via its normal autonomous perch/climb on
+  `.section-title`/`.card`/`.hero-portrait-wrapper` (which every section has).
+  CDP-verified: Home docHeight ~8000px desktop / ~14000px mobile, all 4
+  home-* sections present in order, hero present; nav to `#about` still yields
+  the short standalone page (no home-about); mascot TOURED down the scroll —
+  perches/walks/climbs on real elements at every depth (projects card gap 7px,
+  contact section-title gap 1px), on-screen throughout, ZERO console errors;
+  prod-build smoke test clean (all sections mount, mascot mounts, no real net
+  failures) mobile+desktop. Files: routes.tsx + the 4 page components (beatEnabled
+  prop). NOT pushed.
 - **Verify infra note:** if 9333/dev server are down, relaunch: `BROWSER=none
   npm start` + headless isolated Chrome (`chrome.exe --remote-debugging-port=9333
   --user-data-dir=<scratch> --no-first-run --headless=new`). Never 9222.
