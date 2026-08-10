@@ -667,6 +667,10 @@ a:focus {
        104px = mobile mascot footprint; + 64px margin (verified against real
        measured layouts — sub-pixel rounding grazed the credit line tighter). */
     padding-bottom: calc(104px + 64px) !important;
+    min-height: 0; /* robot is gated off on phones — don't reserve its desktop height */
+  }
+  .footer-inner {
+    padding-bottom: 0; /* no bottom-pinned credit to reserve for on mobile */
   }
 }
 
@@ -2344,10 +2348,158 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1.1rem;
 }
 
+/* LANDING (Home) big footer: positioning context + height for the blended
+   robot, and the depth its mouse-tilt needs. Scoped so the normal footer on
+   every other page stays compact. */
+.site-footer--landing {
+  position: relative;
+  overflow: hidden; /* clip the robot layer to the footer */
+  min-height: 460px; /* room for the blended robot */
+  perspective: 900px; /* real depth for the robot's mouse-tilt */
+}
+.site-footer--landing .footer-inner {
+  position: relative;
+  z-index: 1; /* orbit sits ON TOP of the robot background layer */
+  padding-bottom: 2.6rem; /* keep the orbit clear of the bottom-pinned credit */
+  /* none → mouse passes through empty areas to the robot layer below (so it
+     tracks the cursor); interactive children re-enable it. */
+  pointer-events: none;
+}
+.site-footer--landing .footer-inner a,
+.site-footer--landing .footer-inner button,
+.site-footer--landing .footer-inner .social-orbit__btn {
+  pointer-events: auto;
+}
+
+/* Neon credit — shared by BOTH footers (a cyan→violet gradient text with an
+   animated multi-layer text-shadow that pulses like a neon sign). In-flow by
+   default (normal footer); the landing footer pins it to the bottom below. */
 .footer-credit {
   font-family: var(--mono);
   font-size: 0.82rem;
-  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  color: #d7f7ff; /* visible fill; stays visible where background-clip:text is unsupported */
+  background: linear-gradient(90deg, #22d3ee, #8b7bff, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: footer-neon 3.2s ease-in-out infinite;
+}
+/* Only make the text transparent (so the gradient shows THROUGH it) where the
+   engine can actually clip the background to the text. Without this guard, an
+   unsupported engine keeps transparent fill over a normal background → the
+   credit is INVISIBLE. The `color` above is the fallback fill there. */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .footer-credit {
+    -webkit-text-fill-color: transparent;
+  }
+}
+/* Landing: pin the credit to the TRUE footer bottom, above the robot layer,
+   clear of the orbit. */
+.site-footer--landing .footer-credit {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  z-index: 2;
+  white-space: nowrap;
+}
+@keyframes footer-neon {
+  0%, 100% {
+    text-shadow:
+      0 0 4px rgba(34, 211, 238, 0.55),
+      0 0 12px rgba(34, 211, 238, 0.4),
+      0 0 22px rgba(139, 123, 255, 0.3);
+  }
+  50% {
+    text-shadow:
+      0 0 7px rgba(34, 211, 238, 0.9),
+      0 0 20px rgba(139, 123, 255, 0.7),
+      0 0 40px rgba(139, 123, 255, 0.5);
+  }
+}
+/* Static neon (no pulse) for reduced-motion — keep the glow, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .footer-credit {
+    animation: none;
+    text-shadow: 0 0 8px rgba(34, 211, 238, 0.6), 0 0 18px rgba(139, 123, 255, 0.45);
+  }
+}
+/* Phones on the LANDING footer: the robot is gated off, so the pinned credit
+   goes back IN-FLOW (below the orbit, above Maska Bhai's reserved corner) — an
+   absolute bottom credit collides with the mascot's corner. Selector matches
+   `.site-footer--landing .footer-credit` specificity so it actually overrides
+   it (a bare `.footer-credit` here would lose). The normal footer's credit is
+   already static, so it's unaffected. */
+@media (max-width: 767px) {
+  .site-footer--landing .footer-credit {
+    position: static;
+    transform: none;
+    white-space: normal;
+    margin-top: 0.4rem;
+  }
+  /* Robot is gated off on phones → drop its 460px reservation so the mobile
+     landing footer isn't a big empty box (it hugs the orbit + credit instead).
+     padding-bottom already reserved for the mascot corner via the ≤767px
+     .site-footer rule elsewhere. */
+  .site-footer--landing {
+    min-height: 0;
+  }
+  .site-footer--landing .footer-inner {
+    padding-bottom: 0;
+  }
+}
+
+/* ---------- Footer 3D robot (blended background layer) ----------
+   The Spline robot fills the footer as a transparent BACKGROUND layer behind
+   the orbit — no card, no box, no text. The scene is rigged to look toward the
+   cursor, so moving the mouse over the footer makes the robot track it.
+   pointer-events off so it never blocks the orbit/credit; Spline still receives
+   the pointer via document-level mousemove (how its look-at works). Sized to
+   sit toward the RIGHT, near the orbit, and edge-faded so it reads as part of
+   the footer rather than a rectangle. Heavy WebGL is gated in JS. */
+.footer-robot {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  /* pointer-events ON so the Spline scene receives mousemove and its rigged
+     look-at tracks the cursor. It sits BEHIND .footer-inner (z-index 0 vs 1);
+     .footer-inner is pointer-events:none with only its interactive children
+     re-enabled, so mouse events pass THROUGH the empty footer to the robot,
+     while the orbit buttons still click. */
+  pointer-events: auto;
+  opacity: 0.9;
+  transform-origin: 50% 50%;
+  will-change: transform; /* the JS mouse-parallax drives x/y/rotate here */
+  /* Fade all four edges so the robot dissolves into the footer, no hard box. */
+  -webkit-mask-image: radial-gradient(120% 120% at 68% 45%, #000 42%, transparent 78%);
+  mask-image: radial-gradient(120% 120% at 68% 45%, #000 42%, transparent 78%);
+}
+.footer-robot__spline,
+.footer-robot__spline canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Spline Suspense fallback while the scene streams in. */
+.spline-scene__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.spline-scene__loader {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 3px solid rgba(139, 123, 255, 0.25);
+  border-top-color: var(--accent);
+  animation: spotlight-spin 0.9s linear infinite;
+}
+@keyframes spotlight-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spline-scene__loader { animation: none !important; }
 }
 
 /* ---------- Social icon bar ---------- */
@@ -2396,6 +2548,28 @@ h1, h2, h3, h4, h5, h6 {
   --brand: #ff0033;
   --brand-rgb: 255, 0, 51;
 }
+/* Decorative brand badges in the footer orbit (not links) — each glows in its
+   own brand colour on hover, same rule as the socials above. */
+.social-btn--slack {
+  --brand: #36c5f0;
+  --brand-rgb: 54, 197, 240;
+}
+.social-btn--gemini {
+  --brand: #8e7bff;
+  --brand-rgb: 142, 123, 255;
+}
+.social-btn--chatgpt {
+  --brand: #10a37f;
+  --brand-rgb: 16, 163, 127;
+}
+.social-btn--telegram {
+  --brand: #26a5e4;
+  --brand-rgb: 38, 165, 228;
+}
+.social-btn--whatsapp {
+  --brand: #25d366;
+  --brand-rgb: 37, 211, 100;
+}
 
 /* Hover: light up in the platform's brand colour with a matching glow. Applies
    to real links and to the not-yet-linked placeholders alike, so you can see
@@ -2431,6 +2605,141 @@ a.social-btn:focus-visible {
 .social-btn--empty {
   color: var(--text-faint);
   opacity: 0.5;
+}
+
+/* ---------- Social ORBIT (footer variant of the social bar) ----------
+   The social buttons ride two counter-rotating rings around a glowing centre.
+   Mechanics (all transform, GPU-cheap): the RING spins; each ARM is rotated to
+   its angle and pushes its button out by the ring radius; the BUTTON counter-
+   spins at the same rate so it stays upright while it travels. Sizes use rem so
+   it scales down cleanly on phones (see the mobile override at the bottom of
+   the ≤767px block). --r1/--r2 are the two ring radii. */
+.social-orbit {
+  --orbit-r1: 4.2rem; /* inner ring radius — bumped so the 4 inner icons breathe */
+  --orbit-r2: 7rem; /* outer ring radius (holds 5) */
+  --orbit-size: calc(var(--orbit-r2) * 2 + 3.4rem); /* box big enough for the outer buttons */
+  position: relative;
+  width: var(--orbit-size);
+  height: var(--orbit-size);
+  display: grid;
+  place-items: center;
+  margin: 0.5rem auto 0.25rem;
+}
+
+/* Glowing core at the centre. */
+.social-orbit__core {
+  position: absolute;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--accent) 0%, rgba(139, 123, 255, 0.35) 55%, transparent 72%);
+  box-shadow: 0 0 22px 6px rgba(139, 123, 255, 0.35);
+  animation: social-orbit-pulse 3.2s ease-in-out infinite;
+}
+@keyframes social-orbit-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+
+/* The rings: faint guide circles that rotate, carrying their arms. The ring is
+   a big round box that VISUALLY is only a border, but its bounding box still
+   captures the mouse — so the OUTER ring was intercepting hover over the INNER
+   ring's buttons (github/facebook never lit up). Rings + arms are decorative,
+   so they take NO pointer events; only the buttons do (re-enabled below). */
+.social-orbit__ring {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  transform-origin: center;
+  pointer-events: none;
+}
+.social-orbit__ring--1 {
+  width: calc(var(--orbit-r1) * 2);
+  height: calc(var(--orbit-r1) * 2);
+  animation: social-orbit-cw 22s linear infinite;
+}
+.social-orbit__ring--2 {
+  width: calc(var(--orbit-r2) * 2);
+  height: calc(var(--orbit-r2) * 2);
+  animation: social-orbit-ccw 30s linear infinite;
+}
+@keyframes social-orbit-cw { to { transform: rotate(360deg); } }
+@keyframes social-orbit-ccw { to { transform: rotate(-360deg); } }
+
+/* Each arm sits at the ring centre, rotated to its --angle; the button at its
+   end is translated OUT by the ring radius. Arms are zero-size anchors so the
+   rotation pivots exactly on the ring centre. */
+.social-orbit__arm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--angle, 0deg));
+  pointer-events: none; /* zero-size pivot — the BUTTON re-enables its own events */
+}
+.social-orbit__ring--1 .social-orbit__arm { --arm-r: var(--orbit-r1); }
+.social-orbit__ring--2 .social-orbit__arm { --arm-r: var(--orbit-r2); }
+
+/* The button: pulled out to the ring radius, then counter-rotated (by the arm's
+   angle) so it faces the viewer, plus the ring's own counter-spin animation so
+   it stays upright as the ring turns. The translate lives on this element; the
+   two rotations (undo the arm angle + the anim) compose on top. */
+.social-orbit__btn {
+  position: absolute;
+  pointer-events: auto; /* re-enable: rings/arms are pointer-events:none, but the
+                           button itself must catch hover/click (this is the fix
+                           for github/facebook not glowing — the outer ring's box
+                           was eating their hover). */
+  /* centre the 44px button on the arm tip: translate out, then back by half its size */
+  transform: translate(-50%, -50%) translateY(calc(var(--arm-r) * -1)) rotate(calc(var(--angle, 0deg) * -1));
+  animation-duration: inherit; /* placeholder; real duration set per ring below */
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.social-orbit__ring--1 .social-orbit__btn { animation-duration: 22s; }
+.social-orbit__ring--2 .social-orbit__btn { animation-duration: 30s; }
+
+/* Counter-spins: exact opposite of each ring, so a button's net rotation is 0
+   (upright) throughout the orbit. Named animations are assigned inline per ring
+   in SocialOrbit.tsx; these keyframes preserve the arm-angle correction via the
+   from-transform including the -angle rotate. */
+@keyframes social-orbit-counter-cw {
+  from { transform: translate(-50%, -50%) translateY(calc(var(--arm-r) * -1)) rotate(calc(var(--angle) * -1)); }
+  to   { transform: translate(-50%, -50%) translateY(calc(var(--arm-r) * -1)) rotate(calc(var(--angle) * -1 - 360deg)); }
+}
+@keyframes social-orbit-counter-ccw {
+  from { transform: translate(-50%, -50%) translateY(calc(var(--arm-r) * -1)) rotate(calc(var(--angle) * -1)); }
+  to   { transform: translate(-50%, -50%) translateY(calc(var(--arm-r) * -1)) rotate(calc(var(--angle) * -1 + 360deg)); }
+}
+
+/* Hover pops the button toward the viewer without leaving the orbit path. */
+.social-orbit__btn:hover,
+a.social-orbit__btn:focus-visible {
+  z-index: 5;
+}
+
+/* Respect reduced motion AND touch: freeze the spin (rings + icons hold their
+   start positions, still a clean orbital arrangement, just static). */
+@media (prefers-reduced-motion: reduce) {
+  .social-orbit__ring,
+  .social-orbit__btn,
+  .social-orbit__core {
+    animation: none !important;
+  }
+}
+
+/* Phone: shrink the orbit radii so both rings + their 44px buttons fit a narrow
+   width without clipping. MUST live AFTER the base .social-orbit rule above —
+   equal specificity means source order wins, and the base rule would otherwise
+   override an earlier media block. Spin/counter-spin/upright-icons all scale
+   from these radii, so nothing else changes. */
+@media (max-width: 767px) {
+  .social-orbit {
+    --orbit-r1: 3.3rem;
+    --orbit-r2: 5.6rem;
+    --orbit-size: calc(var(--orbit-r2) * 2 + 3rem);
+  }
 }
 
 /* ---------- Error boundary fallback ---------- */

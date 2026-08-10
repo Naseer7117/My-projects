@@ -186,7 +186,7 @@ const AppShell: React.FC = () => {
 
         {isHome ? <HeroTicker footer /> : null}
 
-        <Footer name={hero.name} socials={portfolioData.socialMedia} />
+        <Footer name={hero.name} socials={portfolioData.socialMedia} variant={isHome ? 'landing' : 'normal'} />
 
         <CompanionRoamer />
       </div>

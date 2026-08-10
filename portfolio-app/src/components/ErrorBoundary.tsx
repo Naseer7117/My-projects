@@ -31,12 +31,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   render(): React.ReactNode {
     if (this.state.hasError) {
+      // Use `'fallback' in props` — NOT `?? default` — so an intentional
+      // `fallback={null}` (render nothing, e.g. a failed decorative Spline
+      // scene) is honored instead of falling through to the default box
+      // (`null ?? default` would return the default).
+      if ('fallback' in this.props) {
+        return this.props.fallback;
+      }
       return (
-        this.props.fallback ?? (
-          <div className="error-fallback" role="alert">
-            <p>Something went wrong loading this section. Please try another page.</p>
-          </div>
-        )
+        <div className="error-fallback" role="alert">
+          <p>Something went wrong loading this section. Please try another page.</p>
+        </div>
       );
     }
     return this.props.children;
