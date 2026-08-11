@@ -43,12 +43,22 @@ export type PerchSpan = {
 };
 
 /** Selectors worth standing on, in priority order. Broad on purpose — the
- * visibility + width filters below do the real gatekeeping. */
+ * owner wants the mascot to walk EVERYWHERE there's text (headings, paragraphs,
+ * list items, labels), overlapping it if needed — so this now covers body text
+ * too, not just chrome borders. The visibility + width filters below do the
+ * real gatekeeping (an element too narrow/off-screen is skipped, never the
+ * mascot getting stuck). Duplicate matches across selectors are fine — a
+ * candidate that matches two just gets two entries in the random pick. */
 const PERCH_SELECTORS = [
   '.hero-portrait-wrapper', // profile image border (home)
   '.hero-title', // the big "Hi, I am Naseeruddin Shaik" hero heading (home)
   '.section-title', // section headings (h2)
   '.card', // skill / project / contact cards
+  // Text everywhere: every heading level, paragraphs, list items, and the
+  // small labels/leads that make up the body copy across all sections.
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'p', 'li',
+  '.lead', '.pill-label', '.hero-metric', '.quick-link', '.timeline-item',
 ];
 
 /** How far a text heading's visible glyphs overflow ABOVE its box top (the
@@ -58,17 +68,12 @@ const PERCH_SELECTORS = [
  * box top, so they get 0. */
 const TEXT_ASCENT_LIFT_PX = 17;
 
-/** Whether an element's perch line should hug its VISIBLE TEXT top (headings)
- * rather than its box top (cards, image borders). */
+/** Whether an element's perch line should hug its VISIBLE TEXT top (any text:
+ * headings, paragraphs, list items, labels) rather than its box top (cards,
+ * image borders). Text glyphs overflow ~TEXT_ASCENT_LIFT_PX above the line box,
+ * so text targets lift the perch to seat the feet on the letters. */
 function isTextTarget(el: Element): boolean {
-  const tag = el.tagName;
-  return (
-    tag === 'H1' ||
-    tag === 'H2' ||
-    tag === 'H3' ||
-    el.classList.contains('hero-title') ||
-    el.classList.contains('section-title')
-  );
+  return /^(H[1-6]|P|LI|SPAN|A|SMALL)$/.test(el.tagName) || el.classList.contains('hero-title');
 }
 
 /** The mascot's y when standing ON an element's top border. The container box
@@ -180,19 +185,25 @@ export function measureClimbSpan(
 ): { bottom: Point; top: Point } {
   const full = companionSizeFor(viewportWidth);
   const rect = el.getBoundingClientRect();
-  // Align so he HUGS the border from OUTSIDE (climbs the edge like a ladder),
-  // not straddling its centre — putting the container centre on the line left
-  // half his BODY inside the image. The visible art is `full × POSE_ASPECT`
-  // wide, centred in the full-width container, so its right edge sits
-  // (full + visibleW)/2 in from the container left. We place the container so
-  // that visible RIGHT edge lands CLIMB_BORDER_OVERLAP px past the border (his
-  // gripping side just touches the frame). Clamped so the container never runs
-  // off the left viewport edge — on a narrow phone the gutter is thinner than
-  // he is, so some overlap into the image is unavoidable, but he's pushed as
-  // far left (onto the edge) as fits rather than centred on the line.
+  // Align so he HUGS the border like a ladder. The visible art is
+  // `full × POSE_ASPECT` wide, centred in the full-width container. Two regimes:
+  //   • Wide gutter (desktop): put his visible RIGHT edge CLIMB_BORDER_OVERLAP
+  //     px past the border so his BODY sits fully in the gutter, only his grip
+  //     on the frame — the true outside ladder-hug.
+  //   • Narrow gutter (phones): the ~30px gutter is far thinner than he is
+  //     (~75px), so a full outside-hug isn't possible. Fall back to putting his
+  //     visible LEFT edge ON the border line: he overlaps into the image but
+  //     clearly climbs the EDGE (not centred inside it — the reported bug).
+  //     Clamped to EDGE_INSET so the container never runs off-screen.
   const visibleW = full * COMPANION_POSE_ASPECT;
+  const inset = (full - visibleW) / 2; // container-left → visible-art-left offset
   const CLIMB_BORDER_OVERLAP = 6; // px of grip past the border
-  const x = Math.max(EDGE_INSET, rect.left + CLIMB_BORDER_OVERLAP - (full + visibleW) / 2);
+  const outsideHugX = rect.left + CLIMB_BORDER_OVERLAP - (full + visibleW) / 2; // body fully in gutter
+  const edgeLineX = rect.left - inset; // visible LEFT edge exactly on the border
+  // Prefer the outside-hug; if the gutter can't fit it (outsideHugX would push
+  // him off-screen), use the edge-line placement instead of clamping to the
+  // screen edge (which centred his body inside the image).
+  const x = outsideHugX >= EDGE_INSET ? outsideHugX : Math.max(EDGE_INSET, edgeLineX);
   const { bottomFeet, topFeet } = climbFeetRange(rect, full, viewportHeight);
   // Container top = feet y − full; the feet render at the container bottom.
   return {

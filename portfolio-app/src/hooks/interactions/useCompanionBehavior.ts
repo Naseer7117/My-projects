@@ -309,6 +309,11 @@ export function useCompanionBehavior(): CompanionState {
         anchorEl?: Element | null;
         /** Which end of the anchored span this leg aims at (scroll re-aim). */
         anchorAim?: 'start' | 'end';
+        /** For an intermediate traverse step: fraction 0..1 from start→end of
+         * the anchored span. When set, the scroll re-anchor lerps between the
+         * re-measured start/end at this fraction, so mid-steps track the page
+         * moving under them instead of walking to stale fixed coordinates. */
+        anchorFrac?: number;
         /** Surface leg (border/ramp): renderer suppresses the hop arc. */
         onSurface?: boolean;
         /** Visible scale for this leg (perch fit-to-element shrink, 1 = full). */
@@ -329,6 +334,9 @@ export function useCompanionBehavior(): CompanionState {
    * re-measured on scroll so the mascot tracks the page moving under it. */
   const missionAnchorRef = useRef<Element | null>(null);
   const missionAnchorAimRef = useRef<'start' | 'end'>('end');
+  /** Fraction 0..1 along the span for the current mid-step (null = aim at a raw
+   * end via missionAnchorAimRef). Set from step.anchorFrac in consumeMissionStep. */
+  const missionAnchorFracRef = useRef<number | null>(null);
   const suppressArcRef = useRef(false);
   /** Visible bottom-origin scale for the current leg — read by the renderer
    * (CompanionCharacter) so the mascot shrinks to fit a tight perch with his
@@ -356,6 +364,7 @@ export function useCompanionBehavior(): CompanionState {
   const clearMission = useCallback(() => {
     missionRef.current = [];
     missionAnchorRef.current = null;
+    missionAnchorFracRef.current = null;
     missionClimbElRef.current = null;
     suppressArcRef.current = false;
     perchScaleRef.current = 1; // restore full size on any teardown
@@ -379,6 +388,7 @@ export function useCompanionBehavior(): CompanionState {
     if (step.kind === 'walk') {
       missionAnchorRef.current = step.anchorEl ?? null;
       missionAnchorAimRef.current = step.anchorAim ?? 'end';
+      missionAnchorFracRef.current = step.anchorFrac ?? null;
       suppressArcRef.current = step.onSurface ?? false;
       perchScaleRef.current = step.perchScale ?? 1;
       if (step.perchSize) missionSizeRef.current = step.perchSize;
@@ -812,8 +822,13 @@ export function useCompanionBehavior(): CompanionState {
           const t = s / steps;
           const mid: Point = { x: nearEnd.x + (farEnd.x - nearEnd.x) * t, y: nearEnd.y + (farEnd.y - nearEnd.y) * t };
           // pauseMs makes him stop briefly BEFORE each step — walk, stop, walk
-          // across the letters instead of one fast dart.
-          surfaceLegs.push({ kind: 'walk', req: { target: mid, arrival: 'idle' }, onSurface: true, perchScale: scale, perchSize: perch.size, pauseMs: COMPANION_TRAVERSE_STEP_HOLD_MS });
+          // across the letters instead of one fast dart. anchorEl + anchorFrac
+          // let the scroll re-anchor track this mid-step to the moving element
+          // (lerp of the live span at fraction t) instead of a stale fixed point.
+          // The fraction is measured from the near end, so translate t to a
+          // start→end fraction: near is 'start' when approaching from the left.
+          const fracFromStart = nearAim === 'start' ? t : 1 - t;
+          surfaceLegs.push({ kind: 'walk', req: { target: mid, arrival: 'idle' }, anchorEl: perch.el, anchorFrac: fracFromStart, onSurface: true, perchScale: scale, perchSize: perch.size, pauseMs: COMPANION_TRAVERSE_STEP_HOLD_MS });
         }
         surfaceLegs.push({
           kind: 'walk',
@@ -897,25 +912,35 @@ export function useCompanionBehavior(): CompanionState {
       // horizontal top-edge perch). Any scroll moves the photo out from under
       // the fixed climb points, so the clamber would carry on in mid-air over
       // whatever scrolled into view (owner: "he kept climbing on a card after I
-      // scrolled to the bottom"). So on ANY scroll during a climb, cancel the
-      // whole mission and walk to a valid standing point for the NEW page state.
+      // scrolled to the bottom"). Abort on ANY scroll while a climb is bound —
+      // NO phase whitelist: a stepped climb spends most of its time BETWEEN
+      // rungs (recovery ~260ms + grip-pause ~240ms, both phases 'recovery'/
+      // 'idle'), and clearPhaseTimeout cancels the pending rung timer so it
+      // can't resume onto the scrolled-away photo. `forceGait: 'walk'` pins the
+      // walk-away to a ground gait — otherwise a steep escape leg would re-pick
+      // the climb clip and read as "climbing down through empty space."
       // Checked before the perch re-anchor below.
       if (missionClimbElRef.current) {
-        const phase = fsmPhaseRef.current;
-        if (phase === 'walking' || phase === 'arrived' || phase === 'anticipation') {
-          clearMission();
-          clearPhaseTimeout();
-          activeWalkRef.current = null;
-          requestWalkRef.current({ target: pickStandingPoint(), arrival: 'idle' });
-          return;
-        }
+        clearMission();
+        clearPhaseTimeout();
+        activeWalkRef.current = null;
+        requestWalkRef.current({ target: pickStandingPoint(), arrival: 'idle', forceGait: 'walk' });
+        return;
       }
       const el = missionAnchorRef.current;
       if (!el) return;
       const phase = fsmPhaseRef.current;
       if (phase !== 'walking' && phase !== 'arrived' && phase !== 'anticipation') return;
       const span = measurePerchSpan(el, window.innerWidth, missionSizeRef.current);
-      const aim = missionAnchorAimRef.current === 'start' ? span.start : span.end;
+      const frac = missionAnchorFracRef.current;
+      // Mid-step: lerp between the freshly-measured ends at its fraction so it
+      // tracks the moving element. Otherwise aim at the raw near/far end.
+      const aim =
+        frac !== null
+          ? { x: span.start.x + (span.end.x - span.start.x) * frac, y: span.start.y + (span.end.y - span.start.y) * frac }
+          : missionAnchorAimRef.current === 'start'
+            ? span.start
+            : span.end;
       if (activeWalkRef.current) activeWalkRef.current.target = aim;
       targetX.set(aim.x);
       targetY.set(aim.y);

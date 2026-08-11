@@ -13,13 +13,17 @@ import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextB
 
 type AboutPageProps = {
   data: AboutContent;
+  /** False when this section is STACKED on the long-scroll Home — the mascot's
+   * mount-fire context beat is disabled there so all sections don't fire at once
+   * and stomp each other (he still roams the scroll via normal perch/climb). */
+  beatEnabled?: boolean;
 };
 
-const AboutPage: React.FC<AboutPageProps> = ({ data }) => {
+const AboutPage: React.FC<AboutPageProps> = ({ data, beatEnabled = true }) => {
   // Context beat (§5): settle in and "read" beside the first timeline entry —
   // the page's real spine. See useCompanionContextBeat.ts for why this fires
   // once per route-landing and defers to any higher-priority companion state.
-  useCompanionContextBeat('about', '.timeline-item', 'sitting', { expression: 'content', ms: 4000 }, true);
+  useCompanionContextBeat('about', '.timeline-item', 'sitting', { expression: 'content', ms: 4000 }, beatEnabled);
 
   return (
   <section className="page py-5">

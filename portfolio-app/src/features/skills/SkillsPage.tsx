@@ -13,11 +13,13 @@ import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextB
 
 type SkillsPageProps = {
   data: SkillsContent;
+  /** False when STACKED on long-scroll Home — see AboutPage. */
+  beatEnabled?: boolean;
 };
 
-const SkillsPage: React.FC<SkillsPageProps> = ({ data }) => {
+const SkillsPage: React.FC<SkillsPageProps> = ({ data, beatEnabled = true }) => {
   // Context beat (§5): walk over and peek near the first capability card.
-  useCompanionContextBeat('skills', '.skills-cluster-card', 'peeking', { expression: 'happy', ms: 2000 }, true);
+  useCompanionContextBeat('skills', '.skills-cluster-card', 'peeking', { expression: 'happy', ms: 2000 }, beatEnabled);
 
   return (
   <section className="page py-5">

@@ -16,11 +16,13 @@ import { useRequestCompanionCelebration } from 'hooks/interactions/CompanionCont
 
 type ProjectsPageProps = {
   data: ProjectsContent;
+  /** False when STACKED on long-scroll Home — see AboutPage. */
+  beatEnabled?: boolean;
 };
 
-const ProjectsPage: React.FC<ProjectsPageProps> = ({ data }) => {
+const ProjectsPage: React.FC<ProjectsPageProps> = ({ data, beatEnabled = true }) => {
   // Context beat (§5): walk over and peek near the first featured project.
-  useCompanionContextBeat('projects', '.project-card--featured', 'peeking', { expression: 'happy', ms: 1800 }, true);
+  useCompanionContextBeat('projects', '.project-card--featured', 'peeking', { expression: 'happy', ms: 1800 }, beatEnabled);
   // The mascot cheers when a visitor actually opens a repo / live demo —
   // real outbound intent, not hover noise.
   const celebrate = useRequestCompanionCelebration();

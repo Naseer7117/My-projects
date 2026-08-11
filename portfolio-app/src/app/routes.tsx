@@ -22,7 +22,24 @@ export type PageContext = {
 };
 
 export const pageRenderers: Record<RouteKey, (ctx: PageContext) => React.ReactNode> = {
-  home: ({ data, navigate }) => <HomePage data={data.hero} onNavigate={navigate} />,
+  // Home is a LONG-SCROLL landing: the hero followed by every other section
+  // stacked top-to-bottom, so scrolling the home page walks through the whole
+  // site. The nav buttons still load each section as its OWN standalone page
+  // (the other renderers below) — both modes coexist per the owner's ask.
+  // Stacked sections get `beatEnabled={false}` so their mascot context beats
+  // don't all fire at mount and stomp each other; the mascot still roams the
+  // whole scroll via its normal perch/climb on headings, cards, and the photo.
+  // Section ids are prefixed `home-` so they never collide with the router's
+  // own `#about`/`#skills`/… hashes.
+  home: ({ data, navigate }) => (
+    <>
+      <HomePage data={data.hero} onNavigate={navigate} />
+      <section id="home-about" aria-label="About"><AboutPage data={data.about} beatEnabled={false} /></section>
+      <section id="home-skills" aria-label="Skills"><SkillsPage data={data.skills} beatEnabled={false} /></section>
+      <section id="home-projects" aria-label="Projects"><ProjectsPage data={data.projects} beatEnabled={false} /></section>
+      <section id="home-contact" aria-label="Contact"><ContactPage data={data.contact} beatEnabled={false} /></section>
+    </>
+  ),
   about: ({ data }) => <AboutPage data={data.about} />,
   skills: ({ data }) => <SkillsPage data={data.skills} />,
   projects: ({ data }) => <ProjectsPage data={data.projects} />,

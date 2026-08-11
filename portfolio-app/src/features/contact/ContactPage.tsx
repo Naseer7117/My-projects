@@ -15,12 +15,14 @@ import { useRequestCompanionCelebration } from 'hooks/interactions/CompanionCont
 
 type ContactPageProps = {
   data: ContactContent;
+  /** False when STACKED on long-scroll Home — see AboutPage. */
+  beatEnabled?: boolean;
 };
 
-const ContactPage: React.FC<ContactPageProps> = ({ data }) => {
+const ContactPage: React.FC<ContactPageProps> = ({ data, beatEnabled = true }) => {
   // Context beat (§5): the longer contextual "waiting to hear from you" sit,
   // beside the card containing the real mailto/GitHub links.
-  useCompanionContextBeat('contact', '.contact-card', 'sitting', { expression: 'content', ms: 9000 }, true);
+  useCompanionContextBeat('contact', '.contact-card', 'sitting', { expression: 'content', ms: 9000 }, beatEnabled);
   // The mascot cheers when someone actually starts an email — the site's
   // single most-wanted action.
   const celebrate = useRequestCompanionCelebration();

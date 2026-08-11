@@ -644,3 +644,259 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   settles; ZERO frames climbing over the off-screen photo; screenshot shows him
   resting by the footer. Perch top-edge traverse was already scroll-anchored, so
   only the climb needed this. Gates green. NOT pushed.
+- **2026-07-20 (mobile climb alignment — edge-line fallback)** — FIXED: on real
+  phones the climb-alignment fix still put him INSIDE the image. The desktop fix
+  aimed his visible RIGHT edge just past the border (body fully in the gutter),
+  clamped to EDGE_INSET — but the phone gutter (~30px) is far thinner than he is
+  (~75px visible), so the clamp centred his body inside the photo. Physically he
+  can't stand fully outside on mobile. Owner chose (AskUserQuestion) "climb on
+  the border line with some overlap." Fix (`measureClimbSpan`): two regimes —
+  wide gutter keeps the outside-hug (visible right edge 6px past the border,
+  body in the gutter); narrow gutter falls back to the visible LEFT edge exactly
+  ON the border line (`edgeLineX = rect.left − (full−visibleW)/2`), so he
+  overlaps into the image but clearly climbs the EDGE instead of being centred
+  inside it. CDP-verified mobile (393): visible left edge 31 vs photoLeft 30
+  (leftEdgeVsBorder = 1px); screenshot confirms he hugs the left border. Desktop
+  unchanged (outside-hug: art 881→975 vs border 970). Gates green. NOT pushed.
+- **2026-07-20 (shrink mobile hero photo → open the climb gutter)** — Instead of
+  accepting the mobile overlap above, the owner asked to make the PHOTO smaller
+  so the mascot gets real gutter to climb OUTSIDE the border. Design (workflow +
+  live CDP modeling): the outside-hug needs the photo's left edge ≥ ~100px from
+  the screen edge (`measureClimbSpan` outsideHugX threshold, mobile full=104 /
+  visW=75). Photo was full-width (~30px gutter). A CSS-only cap does it — added
+  in the ≤767px block (`App.css` ~1574):
+  `.hero-portrait-wrapper, .hero-sidebar .hero-quick-card { width:100%;
+  max-width:260px; margin-inline-start:auto; }`. **`width:100%` is REQUIRED** —
+  `.hero-sidebar` is a flex COLUMN, so a bare `max-width` child shrinks to
+  min-content (collapsed the photo to 12px in testing). Right-align pools the
+  freed space on the LEFT (the climb side); the Quick-paths card is capped to
+  match so the column stays aligned. Height auto-follows via aspect-ratio 4/5
+  (~316-322px, well over the 220px climb-run floor). CDP-verified: 390px+ phones
+  now get 100-124px left gutter → mascot hugs FULLY OUTSIDE (body right edge 5px
+  past the border, bodyOutside=true, screenshot confirms); 360/375px get 73-88px
+  → overlap cut from ~45px to ~6-13px (full hug not geometrically possible on the
+  smallest phones without dropping the photo below the climb floor — 260px is the
+  sweet spot). Climb still fires on all phones. Desktop/tablet untouched (cap is
+  ≤767px only; verified maxW:none at 768/1024/1440). Gates green. NOT pushed.
+- **2026-07-26 (pre-production adversarial bug hunt — 3 real bugs fixed)** — Ran a
+  parallel finder + independent-verifier review of the whole mascot FSM. 3 real
+  bugs survived verification (1 refuted):
+  1. **Climb scroll-abort missed 'recovery' + grip-pause 'idle' phases** (HIGH,
+     `useCompanionBehavior.ts` scroll handler). The abort added earlier only fired
+     for phase `walking`/`arrived`/`anticipation`, but a STEPPED climb spends ~half
+     its time BETWEEN rungs (recovery 260ms + grip-pause 240ms, phases
+     'recovery'/'idle'). Scrolling in those gaps skipped the abort → the pending
+     rung timer resumed onto the scrolled-away photo (the very bug the abort was
+     meant to fix, reintroduced by the rung-stepping change). Fix: dropped the
+     phase whitelist entirely — abort on ANY scroll while `missionClimbElRef` is
+     set; `clearPhaseTimeout` cancels the pending rung timer. Verified: climb
+     switches to walk/idle within one crossfade (~0.5s) in all phases; no more
+     advancing to new rungs over off-screen content.
+  2. **Abort walk-away could replay the climb clip** (MEDIUM, same spot). The
+     escape walk to a standing point could be steep → auto-gait re-picked 'climb'
+     → "climbing down through empty space." Fix: `forceGait: 'walk'` on the abort
+     walk.
+  3. **Perch traverse mid-step legs walked to STALE points on scroll** (HIGH,
+     pre-existing). The stepped top-edge traverse's intermediate legs were fixed
+     points with no `anchorEl` (only near/far legs re-anchored), so scrolling
+     mid-traverse sent him to stale coordinates. Fix: mid-steps now carry
+     `anchorEl` + a new `anchorFrac` (0..1 along the span); the scroll re-anchor
+     lerps the freshly-measured start/end at that fraction (new
+     `missionAnchorFracRef`, reset in `clearMission`). Verified: after an 80px
+     scroll his feet re-settle to 10-24px from the moved card top.
+  Residual (NOT a bug, left as-is): after a climb-abort the climb CLIP lingers
+  ~0.5s as it crossfades (COMPANION_POSE_CROSSFADE_S 150ms + 220ms anticipation)
+  — the mission is genuinely aborted (no new rungs), only the pose fades out;
+  hard-cutting the crossfade is more complexity than the off-screen visual gain.
+  Full gate suite green + production-build smoke test (mascot mounts, poses load,
+  ZERO console errors / network failures, survives 5-route tour, reduced-motion
+  hides him) on both mobile+desktop. NOT pushed.
+- **2026-08-01 (long-scroll Home landing + separate pages coexist)** — Owner
+  wanted the HOME page to scroll through ALL sections top-to-bottom, while the
+  nav buttons STILL load each section as its own standalone page (both modes).
+  Lazy impl (reuse, no new components): `app/routes.tsx` `home` renderer now
+  returns the hero (`<HomePage>`) followed by `<AboutPage>/<SkillsPage>/
+  <ProjectsPage>/<ContactPage>` stacked, each wrapped in `<section id="home-*">`
+  (prefixed so the ids never collide with the router's own `#about`/… hashes).
+  The other four renderers are unchanged, so clicking a nav button still routes
+  to the standalone page. One shared gotcha handled: each page fires a mascot
+  `useCompanionContextBeat` ON MOUNT; five at once on Home would stomp each other
+  (last-write-wins), so a new optional `beatEnabled` prop (default true → stand-
+  alone pages unchanged) is passed `false` for the stacked copies. The mascot
+  still roams the whole scroll via its normal autonomous perch/climb on
+  `.section-title`/`.card`/`.hero-portrait-wrapper` (which every section has).
+  CDP-verified: Home docHeight ~8000px desktop / ~14000px mobile, all 4
+  home-* sections present in order, hero present; nav to `#about` still yields
+  the short standalone page (no home-about); mascot TOURED down the scroll —
+  perches/walks/climbs on real elements at every depth (projects card gap 7px,
+  contact section-title gap 1px), on-screen throughout, ZERO console errors;
+  prod-build smoke test clean (all sections mount, mascot mounts, no real net
+  failures) mobile+desktop. Files: routes.tsx + the 4 page components (beatEnabled
+  prop). NOT pushed.
+- **2026-08-01 (mascot roams ALL text) + footer social ORBIT** — Two owner asks:
+  (1) mascot should walk everywhere on text (headings/paragraphs/list items),
+  overlapping if needed. `companionPerch.ts`: widened `PERCH_SELECTORS` to add
+  `h1`–`h6`, `p`, `li`, `.lead`, `.pill-label`, `.hero-metric`, `.quick-link`,
+  `.timeline-item`; broadened `isTextTarget` to all text tags so the ascent-lift
+  seats feet on the letters. Existing width/visibility filters still gate (too-
+  narrow/off-screen skipped). CDP-verified he perches on P/LI/H3/H4/etc. across
+  the scroll, 200/200 on-screen, 0 errors.
+  (2) A pasted shadcn/Tailwind/Next "orbiting-circles" component — INCOMPATIBLE
+  with this CRA+Bootstrap+plain-CSS project (no Tailwind classes resolve, no
+  `@/` alias, no components.json, and it pulled brand logos off a CDN). Owner
+  chose "rebuild in our stack." New `components/layout/SocialOrbit.tsx` +
+  `.social-orbit*` CSS in App.css: the 4 real socials ride two counter-rotating
+  rings around a glowing core; each icon counter-spins to stay upright (the
+  reference's two-layer spin trick), reusing SocialBar's exact icon SVGs +
+  link/placeholder rules (layout-only change). Footer.tsx now renders
+  `<SocialOrbit>` instead of `<SocialBar>` (SocialBar kept as a 1-line revert
+  path, now unused). Reduced-motion freezes the spin. MOBILE: radii shrink via a
+  `@media (max-width:767px)` override placed AFTER the base rule (source-order —
+  an earlier media block was being overridden by the later base rule; that was
+  the one bug found+fixed here). CDP-verified: desktop orbit 259px, mobile 208px,
+  fits within 360/390/1440 viewports (no clip), all 4 buttons visible+upright,
+  screenshots confirm the orbit on both. Gates green. Files: SocialOrbit.tsx
+  (new), Footer.tsx, App.css, companionPerch.ts. NOT pushed.
+  FOLLOW-UP FIX: github + facebook (the two INNER-ring buttons) didn't glow on
+  hover — the OUTER ring div's full bounding box (visually just a thin border,
+  but a big round box for hit-testing) sat over the inner buttons and ate their
+  hover (`elementFromPoint` returned `.social-orbit__ring--2`). Fix: rings +
+  arms are `pointer-events: none` (decorative), buttons `pointer-events: auto`.
+  CDP-verified all 4 now receive hover; forced-:hover shows github shadow+white,
+  facebook shadow+#1877f2 blue. Gates green.
+  ADDED 5 DECORATIVE brand badges to the orbit (owner ask): slack, gemini,
+  chatgpt, telegram, whatsapp — inline SVG logos (no CDN, CSP-safe), NON-links
+  (owner chose decorative-only; ChatGPT/Gemini aren't personal accounts), each
+  with its own `--brand`/`--brand-rgb` glow (`.social-btn--slack/gemini/chatgpt/
+  telegram/whatsapp` in App.css). SocialOrbit.tsx generalized to a unified
+  `OrbitItem` model: the 4 real socials (from portfolioData.socialMedia, still
+  clickable) + the 5 badges, distributed 4-inner/5-outer across the 2 rings
+  (outer has more circumference → more icons). Radii bumped (r1 3.6→4.2rem,
+  r2 6.4→7rem; mobile 2.9/5→3.3/5.6rem) so 9 icons don't crowd. CDP-verified:
+  inner-ring min edge-gap 31px mobile (was 11 at 5/ring), fits 360/390/1100 no
+  clip, all 5 badges glow their brand colour on forced-:hover (slack cyan,
+  gemini purple, chatgpt teal, telegram blue, whatsapp green). Gates green.
+  Files: SocialOrbit.tsx, App.css. NOT pushed.
+  LATER: gemini + chatgpt flipped from decorative to LINKS (owner ask) — href
+  https://gemini.google.com / https://chatgpt.com, target=_blank, full
+  brightness. Slack/telegram/whatsapp stay decorative. One-line-each in the
+  DECORATIVE list; CDP-verified they're real <a> anchors.
+- **2026-08-01 (footer "Interactive 3D" Spline spotlight card)** — Another
+  shadcn/Tailwind/Next pasted component (Spline 3D robot in a spotlight Card),
+  INCOMPATIBLE with CRA+Bootstrap+plain-CSS. Owner chose "add the real Spline
+  robot." Installed `@splinetool/react-spline` (v4) + `@splinetool/runtime`
+  (framer-motion already present). New files: `components/effects/SplineScene.tsx`
+  (lazy wrapper, imports the package ROOT — the `/next` subpath is the only
+  Next-specific build — with a Suspense loader + onError), `components/layout/
+  SpotlightCard.tsx` (the panel: gradient heading + blurb LEFT, Spline robot
+  RIGHT per owner; a mouse-follow radial glow rewritten from the sample's
+  Tailwind `motion.*`+cn() to the app's `m.*`+useSpring/useTransform +
+  `.spotlight-card__glow` CSS — MUST be m.* under `<LazyMotion strict>`).
+  Footer.tsx renders `<SpotlightCard>` above the orbit. Scene streams from
+  prod.spline.design CDN. CRITICAL GATE: the runtime is ~4MB of WebGL across two
+  LAZY chunks (lazy() import → main.js only +8K, 360→368K; chunks load on card
+  mount) AND `SpotlightCard` skips it entirely on phones (innerWidth<=767 OR
+  !hasFinePointer — width is the reliable signal; headless/emulated pointer-media
+  reports fine even on mobile, that was the one bug found+fixed here),
+  reduced-motion, and Save-Data → those get a lightweight `.spotlight-card__orb`
+  instead, and onError falls back too. CDP-verified: desktop loads the robot
+  (canvas 508×318, scene req OK, 0 errors); mobile shows the orb with ZERO
+  heavy spline scene/runtime reqs, card stacks (flex column) + fits 390px;
+  build code-splits (main 368K, spline in 1.9M+2.1M lazy chunks). Maska Bhai +
+  orbit unchanged (two robots now: the footer Spline demo bot + the roaming
+  mascot — owner OK'd). Gates green. Files: SplineScene.tsx, SpotlightCard.tsx
+  (new), Footer.tsx, App.css, package.json. NOT pushed.
+  REWORKED per owner: NOT a boxed card — BLEND the robot into the footer, remove
+  the text, keep only the robot, and it should react to the mouse near the orbit.
+  Deleted SpotlightCard.tsx; new `components/layout/FooterRobot.tsx` = a
+  transparent absolute layer (`.footer-robot`, inset:0) filling `.site-footer`
+  (now position:relative, min-height:460px desktop / 0 mobile, perspective:900px,
+  overflow:hidden, radial mask-image to edge-fade — no box). `.footer-inner`
+  (orbit+credit) is z-index:1 and pointer-events:none with only a/button/orbit-
+  btn re-enabled, so the robot layer (z-index:0, pointer-events:auto) gets
+  mousemove through empty areas while orbit clicks still work (CDP-verified
+  github clickable:true). MOUSE-FOLLOW: the demo Spline scene's own cursor-rig
+  is NOT reliable (couldn't trigger it via CDP/synthetic events — 0% head diff),
+  so FooterRobot adds a VERIFIABLE framer-motion parallax: window mousemove →
+  normalized [-1,1] from footer centre → spring → x/y (±22px) + rotateX/Y (±6°)
+  on the `m.div`. CDP-CONFIRMED the transform responds to the cursor (matrix3d
+  translateX -21px @ left vs +20px @ right). NOTE: headless WebGL screenshots
+  capture the canvas as static (0% pixel diff even though the transform is live)
+  — the parallax WILL show on a real GPU; can't screenshot-verify the pixels
+  headlessly. Same phone/reduced-motion/save-data gate; onError → renders
+  nothing. Gates green. Files: FooterRobot.tsx (new), SpotlightCard.tsx
+  (deleted), Footer.tsx, App.css. NOT pushed.
+- **2026-08-01 (footer credit → bottom + neon)** — Owner: move the "© YEAR …
+  Crafted with care." credit to the true footer bottom (clear of robot + orbit)
+  and give it a neon glow. Credit moved OUT of `.footer-inner` to a direct
+  `.site-footer` child; DESKTOP `.footer-credit` is `position:absolute;
+  bottom:1.1rem; left:50%` (z-index:2, above the robot), `.footer-inner` got
+  `padding-bottom:2.6rem` so the orbit never reaches it. NEON: cyan→violet
+  `background-clip:text` gradient + animated multi-layer `text-shadow`
+  (`@keyframes footer-neon`, 3.2s pulse); reduced-motion keeps a static glow.
+  MOBILE (≤767px): credit reverts to `position:static` (in-flow below the orbit,
+  ABOVE Maska Bhai's reserved corner) — an absolute bottom credit COLLIDED with
+  the mascot corner (caught in CDP: mascot sitting on "…care."). That mobile
+  override MUST come AFTER the base rule (source-order trap again — placed it
+  right after the base `.footer-credit`, not in the early ≤767px block).
+  BUG CAUGHT + FIXED during this change: my first edit left the early ≤767px
+  `@media` block UNCLOSED (missing `}`) → PostCSS "Unclosed block" → the WHOLE
+  app rendered blank (footer/everything gone). Always CDP-verify the app still
+  mounts after CSS edits. CDP-verified after fix: desktop credit absolute,
+  neon anim running, 112px clear of orbit; mobile static, clear of orbit +
+  mascot, fits width; screenshots confirm the cyan glow both. Gates green.
+  Files: Footer.tsx, App.css. NOT pushed.
+- **2026-08-01 (footer variants: big only on landing)** — Owner: keep the big
+  footer (robot + orbit + neon) only on the LANDING page (Home); every other
+  page gets a NORMAL footer (plain SocialBar icon row + neon credit). Footer.tsx
+  now takes `variant: 'landing' | 'normal'`; App.tsx passes `isHome ? 'landing'
+  : 'normal'`. 'landing' = FooterRobot + SocialOrbit + bottom-pinned credit on
+  `.site-footer--landing`; 'normal' = the pre-existing `SocialBar` (kept as the
+  revert component all along) + in-flow neon credit. CSS re-scoped: base
+  `.site-footer` is now just border+bg; the robot-height/perspective/overflow/
+  relative + orbit pointer-events + absolute-pinned credit all moved under
+  `.site-footer--landing`. Neon `.footer-credit` is SHARED (both footers glow),
+  in-flow by default, absolute only under landing. The ≤767px landing-credit
+  override was re-selectored to `.site-footer--landing .footer-credit` so it
+  keeps matching specificity. CDP-verified: #home landingClass=true robot+orbit,
+  460px; #skills/#about landingClass=false simpleBar=true, 130px compact, neon
+  credit on all. Gates green. Files: Footer.tsx, App.tsx, App.css. NOT pushed.
+- **2026-08-01 (pre-prod bug hunt on footer/robot/mobile — 5 real fixes)** —
+  Adversarial parallel finders + independent verifiers over the footer work.
+  Fixed:
+  1. **CRITICAL — Spline load failure white-screened the WHOLE app.**
+     `@splinetool/react-spline@4` has NO `onError` callback (it's a phantom DOM
+     prop that never fires); on scene/chunk failure (CDN down / 404 / offline)
+     it THROWS during render, Suspense doesn't catch throws, and FooterRobot
+     sits OUTSIDE the page ErrorBoundary → whole tree unmounts → blank site. Fix:
+     `SplineScene.tsx` now wraps the scene in `<ErrorBoundary fallback={null}>`
+     (the chokepoint every consumer routes through); removed the dead `onError`/
+     `failed`/`setFailed` plumbing. CDP-verified: with prod.spline.design +
+     *splinetool* BLOCKED, the app fully mounts, footer shows just the orbit,
+     nothing visible breaks.
+  2. **ErrorBoundary `fallback={null}` was ignored** — `this.props.fallback ??
+     default` treats null as "use default", so it showed the "Something went
+     wrong" box in the footer on CDN failure. Fix: `'fallback' in this.props`
+     check so an intentional null renders nothing. (Verified: 0 error boxes.)
+  3. **Neon credit invisible where `background-clip:text` unsupported** — the
+     bare `-webkit-text-fill-color:transparent` overrode the color fallback. Fix:
+     moved it into `@supports ((background-clip:text) or (-webkit-...))`.
+  4. **Mobile landing footer reserved ~460px dead space** — `min-height:460px`
+     (for the robot, gated off on phones) wasn't reset on mobile. Fix: added
+     `.site-footer--landing { min-height:0 }` + footer-inner padding reset in the
+     ≤767px block (after the base rule → source-order wins). Footer 498→456px.
+  5. **Heavy gate never re-evaluated on resize** — resizing desktop→phone left
+     the ~4MB WebGL canvas mounted. Fix: FooterRobot `heavy` is now `useState` +
+     a rAF-debounced resize listener re-running `shouldLoadRobot()`.
+  Also: decorative orbit badges (slack/telegram/whatsapp `<span>`) now
+  `aria-hidden` (were exposing a misleading control name to screen readers);
+  gemini/chatgpt links keep their labels.
+  FULL RE-VERIFY (CDP): 0 horizontal overflow on 5 pages × 360/390/414;
+  desktop Home Spline loads; normal-footer SocialBar clickable (pointer-events
+  not leaked); all 9 orbit buttons hit-testable; gemini→gemini.google.com /
+  chatgpt→chatgpt.com links OK; CDN-blocked → graceful null, app up. All 4 gates
+  green, prod build code-split (main 372K). Files: SplineScene.tsx, FooterRobot.tsx,
+  ErrorBoundary.tsx, SocialOrbit.tsx, App.css. NOT pushed.
+- **Verify infra note:** if 9333/dev server are down, relaunch: `BROWSER=none
+  npm start` + headless isolated Chrome (`chrome.exe --remote-debugging-port=9333
+  --user-data-dir=<scratch> --no-first-run --headless=new`). Never 9222.
