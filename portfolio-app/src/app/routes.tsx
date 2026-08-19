@@ -6,6 +6,12 @@ import SkillsPage from 'features/skills/SkillsPage';
 import ProjectsPage from 'features/projects/ProjectsPage';
 import ContactPage from 'features/contact/ContactPage';
 
+// Lazy: CinematicIntro pulls in GSAP (~120KB) and only ever runs on the desktop
+// Home opener — keep it out of the initial/main bundle. Suspense fallback is
+// null (nothing shows until it loads; it renders null on mobile/reduced-motion
+// anyway). Loaded in its own chunk.
+const CinematicIntro = React.lazy(() => import('components/effects/CinematicIntro'));
+
 /*
  * routes.tsx — the single place that maps a route name to the page it renders.
  *
@@ -33,9 +39,25 @@ export const pageRenderers: Record<RouteKey, (ctx: PageContext) => React.ReactNo
   // own `#about`/`#skills`/… hashes.
   home: ({ data, navigate }) => (
     <>
+      {/* Scroll-pinned cinematic opener (desktop, motion allowed) — releases
+          into the long-scroll below. Lazy (GSAP chunk); renders null on
+          mobile/reduced-motion. */}
+      <React.Suspense fallback={null}>
+        <CinematicIntro
+          name={data.hero.name}
+          role={data.hero.role}
+          tagline={data.hero.tagline}
+          summary={data.hero.summary}
+          photoSrc={data.hero.photo.src}
+          photoAlt={data.hero.photo.alt}
+          metrics={data.hero.metrics ?? []}
+          onViewProjects={() => navigate('projects')}
+          onContact={() => navigate('contact')}
+        />
+      </React.Suspense>
       <HomePage data={data.hero} onNavigate={navigate} />
       <section id="home-about" aria-label="About"><AboutPage data={data.about} beatEnabled={false} /></section>
-      <section id="home-skills" aria-label="Skills"><SkillsPage data={data.skills} beatEnabled={false} /></section>
+      <section id="home-skills" aria-label="Skills"><SkillsPage data={data.skills} beatEnabled={false} holoBadges /></section>
       <section id="home-projects" aria-label="Projects"><ProjectsPage data={data.projects} beatEnabled={false} /></section>
       <section id="home-contact" aria-label="Contact"><ContactPage data={data.contact} beatEnabled={false} /></section>
     </>

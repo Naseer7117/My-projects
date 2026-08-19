@@ -1168,6 +1168,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+
 .hero-title__name {
   background: var(--gradient);
   -webkit-background-clip: text;
@@ -2335,6 +2336,451 @@ h1, h2, h3, h4, h5, h6 {
   transform: translateY(-2px);
 }
 
+/* ---------- Cinematic intro: LAPTOP-opening Home opener ----------
+   Adapted from a shadcn/Tailwind/GSAP sample to plain CSS + site tokens. GSAP
+   owns the scroll-scrubbed transforms (the lid rotateX open, laptop rise/lift,
+   content fades); these rules are the STATIC look + the 3D setup. Desktop-only;
+   renders null under reduced-motion / touch / narrow. */
+.cinematic-intro {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1600px;
+}
+/* PERF: when the intro scrolls off-screen (JS IntersectionObserver adds this
+   class), FREEZE every animation inside it — the 72 drifting path lines and 60
+   hue-cycling keys otherwise burn CPU/GPU forever on a section nobody's looking
+   at. animation-play-state:paused costs nothing and resumes instantly. (The
+   constellation's rAF is stopped separately via its `active` prop.) */
+.cinematic-intro.is-offscreen *,
+.cinematic-intro.is-offscreen *::before,
+.cinematic-intro.is-offscreen *::after {
+  animation-play-state: paused !important;
+}
+/* Slow-drifting curved line-work — the DEEPEST background layer of the intro
+   (z below the constellation). Decorative, no pointer events. `color` feeds
+   `currentColor` on the strokes so the lines carry the site accent. The SVG is
+   stretched to fill and the whole layer is dimmed + edge-feathered so it reads
+   as a subtle woven backdrop under the constellation mesh, not a foreground. */
+.floating-paths {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--accent);
+  opacity: 0.5;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, #000 55%, transparent 92%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, #000 55%, transparent 92%);
+}
+.floating-paths__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* pathLength="1" normalises each path to 1 unit, so a fractional dash slides
+   the same way on every line. Dash = 40% drawn / 60% gap; the offset animates a
+   full unit so the drawn segment travels the whole path (the "flow"). */
+.floating-paths__line {
+  stroke-dasharray: 0.4 0.6;
+  animation: floating-paths-drift var(--fp-dur, 24s) linear infinite;
+  animation-direction: var(--fp-dir, normal);
+}
+@keyframes floating-paths-drift {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floating-paths { display: none; }
+}
+
+/* Interactive constellation mesh (canvas) — over the floating paths, behind the
+   headline (z-10) and laptop (z-20). z-index:1 so it paints ABOVE the paths.
+   pointer-events stay ON so the cursor drives the node shockwaves; feathered at
+   the edges so the mesh fades into the background rather than ending on a hard
+   rectangle. */
+.cinematic-intro__constellation {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, #000 55%, transparent 85%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, #000 55%, transparent 85%);
+}
+
+/* Headline: "I am / Naseeruddin Shaik" */
+.cine-hero-text {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 1.25rem;
+  will-change: transform, opacity, filter;
+}
+/* iPhone-setup "hello" greeting — each word DRAWS ON stroke-by-stroke: an SVG
+   <text> whose glyph OUTLINES are stroked, with stroke-dashoffset animating
+   full→0 so the letters trace themselves like a pen (works for ANY script —
+   Latin, Devanagari, Telugu, CJK, Arabic). A fill fades in behind so the
+   finished word reads solid. Placed UP in the empty space above the headline,
+   CONTAINED in a fixed box so nothing overflows. Themed accent gradient. */
+.hello-greeting-line {
+  position: absolute;
+  top: clamp(6vh, 11vh, 15vh);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.hello-greeting {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Fixed, CONTAINED box (fixes the overflow): the SVG viewBox is 600x180 and it
+   scales to this size; preserveAspectRatio keeps long words inside. overflow
+   hidden clips any glyph that would spill past the box. */
+.hello-greeting__svg {
+  width: min(46vw, 460px);
+  height: clamp(5rem, 11vw, 9rem);
+  overflow: hidden;
+  filter: drop-shadow(0 8px 26px rgba(139, 123, 255, 0.4));
+}
+.hello-greeting__stroke {
+  fill: none;
+  stroke: url(#hello-grad);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* the draw-on: huge dash = the whole outline; offset animates to 0 so it
+     traces on. 1600 comfortably exceeds any greeting's outline length. */
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation:
+    hello-draw var(--write-ms, 1700ms) ease-out forwards,
+    hello-fade var(--fade-ms, 550ms) ease-in forwards;
+  animation-delay: 0ms, calc(var(--write-ms, 1700ms) + var(--hold-ms, 1000ms));
+}
+/* solid fill fades in as the stroke completes, so the held word looks filled. */
+.hello-greeting__fill {
+  fill: url(#hello-grad);
+  opacity: 0;
+  animation:
+    hello-fill 700ms ease-out forwards,
+    hello-fade var(--fade-ms, 550ms) ease-in forwards;
+  animation-delay: calc(var(--write-ms, 1700ms) * 0.55), calc(var(--write-ms, 1700ms) + var(--hold-ms, 1000ms));
+}
+@keyframes hello-draw { to { stroke-dashoffset: 0; } }
+@keyframes hello-fill { to { opacity: 0.92; } }
+@keyframes hello-fade { from { opacity: inherit; } to { opacity: 0; } }
+
+/* reduced motion / static: fully written + filled, no drawing. */
+.hello-greeting__svg.is-static .hello-greeting__stroke { stroke-dashoffset: 0; animation: none; }
+.hello-greeting__svg.is-static .hello-greeting__fill { opacity: 0.92; animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .hello-greeting__stroke { stroke-dashoffset: 0; animation: none; }
+  .hello-greeting__fill { opacity: 0.92; animation: none; }
+}
+
+.cine-kicker {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-bottom: 1.25rem;
+}
+.cine-headline {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  /* the scroll exit lunges this toward the camera (scale 2.4) — hint the GPU */
+  will-change: transform, opacity, filter;
+}
+.cine-headline__lead {
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.cine-headline__name {
+  font-size: clamp(2.8rem, 7vw, 6rem);
+  font-weight: 800;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(170, 182, 204, 0.72) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 12px 30px rgba(139, 123, 255, 0.25));
+}
+.cine-scrollcue {
+  margin-top: 2rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+  color: var(--text-faint);
+  animation: cine-cue 2.4s ease-in-out infinite;
+}
+@keyframes cine-cue { 0%,100% { transform: translateY(0); opacity: 0.6; } 50% { transform: translateY(6px); opacity: 1; } }
+
+/* Stage: the laptop assembly, CENTERED in the viewport (no dead space below).
+   `justify-content: center` keeps the whole open laptop vertically centred as it
+   grows, so the base never gets crammed at the bottom with a big gap under it. */
+.cinematic-intro__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  perspective: 2000px;
+}
+/* The laptop = lid stacked directly ON the deck (flex column, bottom-aligned so
+   the lid's hinge edge meets the deck's back edge). preserve-3d so the lid can
+   fold in Z. */
+.cine-laptop {
+  position: relative;
+  width: min(70vw, 860px);
+  /* nudge the assembly up: the deck's perspective tilt visually weights it low,
+     so lift the whole unit to keep the OPEN laptop centred (less empty band
+     below). */
+  margin-top: -5vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  transform-style: preserve-3d;
+  pointer-events: auto;
+  will-change: transform, opacity;
+}
+
+/* LID / SCREEN — the hinge is its BOTTOM edge (where it meets the deck). GSAP
+   animates rotationX from -92deg (closed: lid lying face-down flat on the deck)
+   to 0deg (open: standing upright). transform-origin bottom = the hinge line. */
+.cine-laptop__screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  transform-origin: bottom center;
+  transform-style: preserve-3d;
+  border-radius: 14px 14px 3px 3px;
+  background: linear-gradient(160deg, #20263f 0%, #0a0f1e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 0 0 7px #0b0e18,
+    0 34px 80px -24px rgba(0, 0, 0, 0.95);
+  overflow: hidden;
+  will-change: transform;
+}
+.cine-screen-glow {
+  position: absolute;
+  inset: 7px;
+  border-radius: 7px;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(34, 211, 238, 0.14), transparent 60%),
+    linear-gradient(180deg, #070b16 0%, #04060d 100%);
+}
+.cine-screen__sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.06) 0%, transparent 45%);
+  mix-blend-mode: screen;
+}
+.cine-screen-content {
+  position: absolute;
+  inset: 7px;
+  z-index: 3;
+  border-radius: 7px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.cine-scr {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(150px, 34%) 1fr;
+  align-items: center;
+  gap: clamp(0.75rem, 2.5vw, 2rem);
+  padding: clamp(0.75rem, 2.5vw, 2rem);
+}
+.cine-scr__media { display: flex; align-items: center; justify-content: center; }
+.cine-scr__photo {
+  width: 100%;
+  max-width: 190px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px -14px rgba(0, 0, 0, 0.9);
+}
+.cine-scr__body { min-width: 0; will-change: transform, opacity; }
+.cine-scr__name {
+  display: block;
+  font-size: clamp(1.4rem, 3.2vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.cine-scr__name-accent {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.cine-scr__tagline {
+  margin: 0.5rem 0 0.35rem;
+  font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+  color: #dbe6ff;
+  line-height: 1.45;
+}
+.cine-scr__summary {
+  margin: 0 0 0.9rem;
+  font-size: clamp(0.72rem, 1vw, 0.9rem);
+  color: rgba(219, 230, 255, 0.62);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.cine-scr__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.cine-stat {
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  will-change: transform, opacity;
+}
+.cine-stat__value { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
+.cine-stat__label { font-size: 0.62rem; color: rgba(219, 230, 255, 0.55); }
+.cine-scr__cta { display: flex; flex-wrap: wrap; gap: 0.6rem; will-change: transform, opacity; }
+.cine-btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.cine-btn--primary {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: #06121f;
+  box-shadow: 0 8px 24px -8px rgba(34, 211, 238, 0.6);
+}
+.cine-btn--primary:hover { transform: translateY(-2px); }
+.cine-btn--ghost {
+  background: rgba(255, 255, 255, 0.05);
+  color: #eaf0fb;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.cine-btn--ghost:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.09); }
+
+/* DECK / KEYBOARD — the flat base the lid hinges from. A shallow perspective
+   tilt (rotateX) so it reads as a horizontal surface receding away, its BACK
+   (top) edge meeting the lid's hinge. Compact height so, with the lid, the whole
+   laptop stays centred (the old version left a big empty band below). */
+.cine-laptop__base {
+  position: relative;
+  width: 96%;
+  padding: 0.5rem 6% 0.7rem;
+  border-radius: 4px 4px 12px 12px;
+  background: linear-gradient(180deg, #303643 0%, #14171f 55%, #0a0c13 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 44px 60px -26px rgba(0, 0, 0, 0.9),
+    inset 0 1px 1px rgba(255, 255, 255, 0.14);
+  transform: rotateX(52deg);
+  transform-origin: top center;
+}
+.cine-laptop__hinge {
+  position: absolute;
+  top: -2px;
+  left: 30%;
+  right: 30%;
+  height: 4px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #454a58, #14161f);
+}
+.cine-laptop__keyboard {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 4px;
+  max-width: 84%;
+  margin: 0.25rem auto 0.4rem;
+}
+/* RGB KEYBOARD — each key glows a neon colour and the hue cycles through the
+   whole spectrum; a per-key negative delay derived from --k (col+row) offsets
+   the hue so the colour sweeps DIAGONALLY across the board like a real RGB
+   gaming keyboard. The key face is a saturated colour (hsl at a base hue) that
+   `filter: hue-rotate` spins through all neon colours; a matching box-shadow
+   glow pulses with it. */
+.cine-key {
+  height: 13px;
+  border-radius: 3px;
+  /* EDGE-LIT keys (owner: light the borders, not the whole face — reads
+     lighter). Dark key body like a real backlit keycap; only a glowing neon
+     RING + halo carries the colour. hue-rotate (below) spins that ring/glow
+     through every neon colour, so the wave still flows — just around the edges,
+     not filling the key. */
+  background: linear-gradient(180deg, #14161d 0%, #0c0d12 100%);
+  border: 1.5px solid hsl(300, 100%, 68%);
+  box-shadow:
+    inset 0 0 4px 0 hsla(300, 100%, 70%, 0.85),
+    0 0 6px 1px hsla(300, 100%, 68%, 0.85),
+    0 0 12px 2px hsla(300, 100%, 62%, 0.45);
+  /* --k (0..~18) staggers each key so the neon wave flows across the keyboard */
+  animation: cine-key-rgb 4s linear infinite;
+  animation-delay: calc(var(--k, 0) * -0.22s);
+  /* PERF: no `will-change:filter` — it force-promotes all 60 keys to their own
+     GPU layers (heavy VRAM on low-end / integrated GPUs). hue-rotate animates
+     fine without it; let the browser decide when to promote. */
+}
+@keyframes cine-key-rgb {
+  to { filter: hue-rotate(360deg); }
+}
+/* Reduced motion: hold a static neon colour, no cycling. */
+@media (prefers-reduced-motion: reduce) {
+  .cine-key { animation: none; }
+}
+.cine-laptop__trackpad {
+  width: 24%;
+  height: 22px;
+  margin: 0 auto;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2d323e 0%, #1a1d27 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* Keep silver/gradient text visible where background-clip:text is unsupported. */
+@supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+  .cine-headline__name, .cine-scr__name, .cine-scr__name-accent { color: #eaf0fb; }
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {
@@ -2864,6 +3310,78 @@ a.social-orbit__btn:focus-visible {
   font-family: var(--mono);
   font-size: 0.82rem;
   color: var(--text-dim);
+}
+
+/* ---------- Holographic cert badges (landing page only) ----------
+   Adapted from an "award badge" sample's look to plain CSS: an iridescent foil
+   sheen that drifts + a diagonal shine sweep on hover, over the existing
+   data-tilt 3D lean. Only `.cert-card--holo` (Home stack) gets these; the
+   standalone Skills page keeps the plain cards. */
+.cert-card--holo {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate; /* contain the blend-mode to this card */
+  background: linear-gradient(160deg, rgba(28, 34, 60, 0.9) 0%, rgba(10, 14, 26, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.cert-card--holo .card-body { position: relative; z-index: 2; }
+
+/* Iridescent foil — a wide multi-hue gradient that slowly pans across the card;
+   soft (mix-blend + low opacity) so text stays readable. */
+.cert-holo {
+  position: absolute;
+  inset: -40%;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.cert-holo--foil {
+  background: conic-gradient(
+    from 0deg,
+    hsl(358 100% 62% / 0.5),
+    hsl(30 100% 50% / 0.5),
+    hsl(60 100% 50% / 0.5),
+    hsl(150 80% 50% / 0.5),
+    hsl(200 90% 55% / 0.5),
+    hsl(271 85% 60% / 0.5),
+    hsl(358 100% 62% / 0.5)
+  );
+  filter: blur(22px);
+  opacity: 0.28;
+  mix-blend-mode: screen;
+  animation: cert-foil 7s linear infinite;
+}
+@keyframes cert-foil {
+  to { transform: rotate(360deg); }
+}
+/* brighten the foil when tilting/hovering */
+.cert-card--holo:hover .cert-holo--foil { opacity: 0.5; }
+
+/* Diagonal shine sweep — parked off-screen, sweeps across on hover. */
+.cert-holo--shine {
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.35) 48%, rgba(255, 255, 255, 0.05) 56%, transparent 70%);
+  transform: translateX(-120%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.cert-card--holo:hover .cert-holo--shine {
+  opacity: 1;
+  animation: cert-shine 0.9s ease;
+}
+@keyframes cert-shine {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(120%); }
+}
+.cert-card--holo:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(139, 123, 255, 0.4), 0 20px 44px -16px rgba(139, 123, 255, 0.5);
+}
+
+/* Respect reduced motion: hold a static gentle sheen, no spin/sweep. */
+@media (prefers-reduced-motion: reduce) {
+  .cert-holo--foil { animation: none; opacity: 0.2; }
+  .cert-card--holo:hover .cert-holo--shine { animation: none; }
 }
 
 .strength-tags {

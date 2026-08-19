@@ -144,6 +144,32 @@ const AppShell: React.FC = () => {
     if (!introVariant) document.documentElement.classList.remove('intro-active');
   }, [introVariant]);
 
+  // On RELOAD, always start at the very top. Browsers default to
+  // scrollRestoration:'auto', which restores the last scroll position on
+  // reload — with the pinned cinematic intro that drops you mid-animation and
+  // looks broken. Take manual control and jump to top once at mount.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+    } catch {
+      /* older browsers: nothing to do */
+    }
+    window.scrollTo(0, 0);
+
+    // The React bundle has booted — cancel index.html's "force-reveal all
+    // content" safety net (it exists only for a stalled/failed JS boot). Left
+    // running, its fixed timer would fire while the visitor is still in the
+    // pinned cinematic intro and slap `reveal-fallback` on the root, which
+    // `opacity:1 !important; transform:none !important`s EVERY [data-reveal] and
+    // kills the scroll-in pop animations on all the cards below the fold.
+    const w = window as Window & { __revealFallbackTimer?: number };
+    if (w.__revealFallbackTimer !== undefined) {
+      clearTimeout(w.__revealFallbackTimer);
+      w.__revealFallbackTimer = undefined;
+    }
+  }, []);
+
   // Scroll to the top on every route change.
   React.useEffect(() => {
     if (typeof window.scrollTo !== 'function') return;
