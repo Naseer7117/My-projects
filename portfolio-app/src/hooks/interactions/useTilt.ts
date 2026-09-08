@@ -15,17 +15,25 @@ function setupTilt(): () => void {
   const cleanups: Array<() => void> = [];
 
   cards.forEach((card) => {
+    // Cache the box on enter so pointermove never forces a synchronous layout
+    // read: the rAF writes --tx/--ty/--gx/--gy which dirty layout/paint, so
+    // reading getBoundingClientRect() the next frame would flush that back (a
+    // read-after-write thrash, per card, per frame). Mirrors useMagnetic.
+    let rect: DOMRect | null = null;
     let raf = 0;
     const onEnter = () => {
+      rect = card.getBoundingClientRect();
       card.style.willChange = 'transform'; // promote only while tilting
     };
     const onMove = (e: PointerEvent) => {
       if (raf) return;
+      const cx = e.clientX;
+      const cy = e.clientY;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const r = card.getBoundingClientRect();
-        const px = (e.clientX - r.left) / r.width - 0.5;
-        const py = (e.clientY - r.top) / r.height - 0.5;
+        if (!rect) rect = card.getBoundingClientRect(); // fallback: move before enter
+        const px = (cx - rect.left) / rect.width - 0.5;
+        const py = (cy - rect.top) / rect.height - 0.5;
         const max = Number(card.dataset.tilt || DEFAULT_TILT_DEG);
         card.style.setProperty('--ty', `${px * max}deg`);
         card.style.setProperty('--tx', `${-py * max}deg`);
@@ -36,6 +44,7 @@ function setupTilt(): () => void {
     const onLeave = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
+      rect = null;
       card.style.setProperty('--tx', '0deg');
       card.style.setProperty('--ty', '0deg');
       card.style.willChange = 'auto'; // release the promotion once settled

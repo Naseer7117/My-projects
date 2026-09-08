@@ -31,6 +31,8 @@ const ConstellationGrid: React.FC<ConstellationGridProps> = ({ active = true }) 
   React.useEffect(() => {
     if (prefersReducedMotion()) return;
     if (!active) return; // section off-screen — don't run the physics loop at all
+    // (No extra low-power gate needed: the whole cinematic is gated off low-power
+    // devices via canRunCinematic(), so this only ever runs on capable hardware.)
     const canvas = canvasRef.current;
     if (!canvas) return;
     // alpha:true so we layer OVER the cinematic bg instead of painting it black.
@@ -196,6 +198,12 @@ const ConstellationGrid: React.FC<ConstellationGridProps> = ({ active = true }) 
       const MAX_CONN_DIST_SQ = MAX_CONN_DIST * MAX_CONN_DIST;
       const REACH = 2; // cells to look ahead in each direction
       ctx.lineWidth = 0.7;
+      // Set the edge colour ONCE and vary per-edge opacity via globalAlpha —
+      // avoids building an `rgba(...)` string for every drawn edge each frame
+      // (GC pressure in the hot O(n) pass). Output is pixel-identical: the alpha
+      // formula is unchanged, just applied through globalAlpha instead of baked
+      // into the string. globalAlpha is reset to 1 before the node/ring passes.
+      ctx.strokeStyle = `rgb(${nodeColor})`;
       for (let ci = 0; ci < cols; ci++) {
         for (let rj = 0; rj < rows; rj++) {
           const n = nodes[ci * rows + rj];
@@ -210,8 +218,7 @@ const ConstellationGrid: React.FC<ConstellationGridProps> = ({ active = true }) 
               const distSq = ndx * ndx + ndy * ndy;
               if (distSq < MAX_CONN_DIST_SQ) {
                 const nDist = Math.sqrt(distSq);
-                const alpha = (1 - nDist / MAX_CONN_DIST) * 0.18;
-                ctx.strokeStyle = `rgba(${nodeColor}, ${alpha})`;
+                ctx.globalAlpha = (1 - nDist / MAX_CONN_DIST) * 0.18;
                 ctx.beginPath();
                 ctx.moveTo(n.x, n.y);
                 ctx.lineTo(n2.x, n2.y);
@@ -221,7 +228,10 @@ const ConstellationGrid: React.FC<ConstellationGridProps> = ({ active = true }) 
           }
         }
       }
+      ctx.globalAlpha = 1; // restore before the node fills / rings (they bake alpha into rgba)
 
+      // Label font is a constant — set once per frame, not per near-node.
+      ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         const dx = mouse.x - n.x;
@@ -243,7 +253,6 @@ const ConstellationGrid: React.FC<ConstellationGridProps> = ({ active = true }) 
           ctx.beginPath();
           ctx.arc(n.x, n.y, pulseRing, 0, Math.PI * 2);
           ctx.stroke();
-          ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
           ctx.fillStyle = `rgba(${accentColor}, 0.85)`;
           ctx.fillText(n.label, n.x + 10, n.y - 10);
         }

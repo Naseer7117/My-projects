@@ -1,7 +1,7 @@
 import React from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { prefersReducedMotion, hasFinePointer } from 'lib/env';
+import { canRunCinematic } from 'lib/env';
 import HelloGreeting from 'components/effects/HelloGreeting';
 import ConstellationGrid from 'components/effects/ConstellationGrid';
 import FloatingPaths from 'components/effects/FloatingPaths';
@@ -59,10 +59,11 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
   // POINTLESS once you scroll past the top — this gate freezes all of it.
   const [inView, setInView] = React.useState(true);
 
-  // Desktop + motion only (see header). One-shot at mount — a mid-scroll flip
-  // would leave a half-torn-down pin.
-  const enabled =
-    typeof window !== 'undefined' && !prefersReducedMotion() && hasFinePointer() && window.innerWidth > 900;
+  // Motion-only (now runs on MOBILE too — owner wants the same landing on phones).
+  // One-shot at mount — a mid-scroll flip would leave a half-torn-down pin. The
+  // mouse-sheen effect below simply no-ops on touch; GSAP ScrollTrigger scrubs on
+  // touch scroll. Heavy sub-parts self-tune via isLowPowerDevice().
+  const enabled = canRunCinematic();
 
   // Pause the whole intro's animation load when it scrolls out of view. A
   // 200px rootMargin resumes it just before it re-enters. The CSS animations
@@ -71,13 +72,31 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
   // the visitor is past the hero.
   React.useEffect(() => {
     if (!enabled) return;
-    const el = rootRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
-      rootMargin: '200px 0px',
-    });
-    io.observe(el);
-    return () => io.disconnect();
+    // Scroll-position based, NOT IntersectionObserver: during the GSAP pin the
+    // .cinematic-intro is wrapped in a pin-spacer and its geometry is distorted,
+    // so an IO on it mis-reported "off-screen" AT THE TOP on mobile — which froze
+    // the whole intro (greeting stroke-draw, keys, paths) via `.is-offscreen`.
+    // The intro owns the first ~1.6 screens of scroll; treat it as in-view while
+    // the visitor is anywhere in that band (+1 screen margin), which the pin can't
+    // fool. rAF-throttled.
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const past = window.scrollY < window.innerHeight * 2.4; // in the intro band
+      setInView(past);
+    };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [enabled]);
 
   // Mouse-follow sheen on the screen glass.

@@ -3,6 +3,8 @@ import { SocialMedia } from 'types';
 import SocialOrbit from 'components/layout/SocialOrbit';
 import SocialBar from 'components/layout/SocialBar';
 import FooterRobot from 'components/layout/FooterRobot';
+import FooterRibbons from 'components/layout/FooterRibbons';
+import FooterGlow from 'components/layout/FooterGlow';
 
 /*
  * Footer — two variants:
@@ -26,10 +28,29 @@ const Credit: React.FC<{ name: string }> = ({ name }) => (
 );
 
 const Footer: React.FC<FooterProps> = ({ name, socials, variant = 'normal' }) => {
+  const footerRef = React.useRef<HTMLElement>(null);
+  // Ribbon canvas rAF runs only while the footer is on screen (perf).
+  const [footerInView, setFooterInView] = React.useState(false);
+  React.useEffect(() => {
+    if (variant !== 'landing') return;
+    const el = footerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([entry]) => setFooterInView(entry.isIntersecting), {
+      rootMargin: '150px 0px',
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [variant]);
+
   if (variant === 'landing') {
     return (
-      <footer className="site-footer site-footer--landing py-4">
-        <FooterRobot />
+      <footer ref={footerRef} className="site-footer site-footer--landing py-4">
+        {/* U-shaped breathing gradient glow spread across the whole footer bottom,
+            the deepest layer. */}
+        <FooterGlow />
+        {/* Neon ribbon-trails chasing the cursor, over the glow. */}
+        <FooterRibbons active={footerInView} />
+        <FooterRobot inView={footerInView} />
         <div className="container footer-inner">
           {socials.length ? <SocialOrbit items={socials} /> : null}
         </div>

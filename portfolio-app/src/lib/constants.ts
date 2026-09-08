@@ -81,7 +81,8 @@ export const COMPANION_ARRIVAL_MIN_HOLD_MS: Record<string, number> = {
 // default-layer state and there is nothing left to weight-pick between.
 
 // Tier B — which idle SUB-animation plays while behavior === 'idle' itself
-// (see spec §2). Picked uniformly, excluding whichever played last time.
+// (see spec §2). Selection is a fair SHUFFLE BAG, not a uniform draw — see
+// useCompanionIdlePool.ts, which owns picking and is the authority.
 // Subs with a video-derived animation of their own (stretch, doze, dance,
 // exercise, think, laugh, hop) swap the mascot to that clip for the hold —
 // poseForBehavior in CompanionCharacter.tsx owns that routing. The three

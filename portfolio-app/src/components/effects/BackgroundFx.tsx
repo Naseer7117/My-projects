@@ -1,4 +1,12 @@
 import React from 'react';
+import MobileAmbient from 'components/effects/MobileAmbient';
+import FloatingPaths from 'components/effects/FloatingPaths';
+import { prefersReducedMotion, hasFinePointer } from 'lib/env';
+
+/** Mobile = no fine pointer OR a narrow viewport. Desktop already has its own
+ *  floating paths inside the cinematic intro, so this only adds them on mobile. */
+const isMobileViewport = (): boolean =>
+  typeof window !== 'undefined' && !prefersReducedMotion() && (!hasFinePointer() || window.innerWidth <= 900);
 
 /*
  * BackgroundFx — the stack of full-screen decorative layers that sit behind all
@@ -9,6 +17,15 @@ import React from 'react';
 
 const BackgroundFx: React.FC = () => (
   <>
+    {/* Mobile-only ambient constellation (self-mounts null on desktop). */}
+    <MobileAmbient />
+    {/* Mobile-only drifting neon line-work (desktop has its own inside the
+        cinematic intro). Pure CSS animation — no cursor needed. */}
+    {isMobileViewport() ? (
+      <div className="mobile-paths" aria-hidden="true">
+        <FloatingPaths />
+      </div>
+    ) : null}
     <canvas className="particles" aria-hidden="true" />
     <div className="beam" aria-hidden="true" />
     <div className="aurora" aria-hidden="true">

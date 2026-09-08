@@ -169,8 +169,12 @@ export function useCursorFx(): void {
             const b = particles[j];
             const dx = a.x - b.x;
             const dy = a.y - b.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < PARTICLE_LINK_DIST) {
+            // squared-distance guard first — only pay for sqrt on pairs that
+            // actually link (the O(n²) pass runs every frame). Same technique
+            // ConstellationGrid already uses.
+            const d2 = dx * dx + dy * dy;
+            if (d2 < PARTICLE_LINK_DIST * PARTICLE_LINK_DIST) {
+              const dist = Math.sqrt(d2);
               const alpha = (1 - dist / PARTICLE_LINK_DIST) * PARTICLE_LINK_ALPHA;
               ctx.strokeStyle = `rgba(${PARTICLE_LINK_RGB}, ${alpha})`;
               ctx.lineWidth = 0.6;

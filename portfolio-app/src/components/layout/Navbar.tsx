@@ -2,6 +2,8 @@ import React from 'react';
 import { m } from 'framer-motion';
 import { RouteKey, NavItem } from 'types';
 import NavBrand from 'components/effects/NavBrand';
+import MagnetizeParticles from 'components/effects/MagnetizeParticles';
+import ThemeToggle from 'components/layout/ThemeToggle';
 import { prefersReducedMotion } from 'lib/env';
 
 /*
@@ -44,10 +46,13 @@ type NavbarProps = {
   active: RouteKey;
   onNavigate: (route: RouteKey) => void;
   heroName: string;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 };
 
-const Navbar: React.FC<NavbarProps> = ({ items, active, onNavigate, heroName }) => {
+const Navbar: React.FC<NavbarProps> = ({ items, active, onNavigate, heroName, theme, onToggleTheme }) => {
   const [open, setOpen] = React.useState(false);
+  const [hovered, setHovered] = React.useState<RouteKey | null>(null);
   const isDesktop = useIsDesktopNav();
 
   const go = (route: RouteKey) => {
@@ -58,6 +63,7 @@ const Navbar: React.FC<NavbarProps> = ({ items, active, onNavigate, heroName }) 
   return (
     <nav className="navbar navbar-expand-md main-navbar sticky-top">
       <div className="container-fluid main-navbar__container">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <NavBrand name={heroName} onClick={() => go('home')} />
         <button
           className="navbar-toggler ms-auto"
@@ -82,10 +88,15 @@ const Navbar: React.FC<NavbarProps> = ({ items, active, onNavigate, heroName }) 
               <li className="nav-item" key={item.route}>
                 <button
                   type="button"
-                  className={`nav-link btn btn-link${active === item.route ? ' active' : ''}`}
+                  className={`nav-link btn btn-link nav-link--magnetize${active === item.route ? ' active' : ''}`}
                   onClick={() => go(item.route)}
+                  onMouseEnter={() => setHovered(item.route)}
+                  onMouseLeave={() => setHovered((h) => (h === item.route ? null : h))}
+                  onFocus={() => setHovered(item.route)}
+                  onBlur={() => setHovered((h) => (h === item.route ? null : h))}
                 >
-                  {item.label}
+                  <MagnetizeParticles attract={hovered === item.route} particleCount={10} spread={54} />
+                  <span className="nav-link__label">{item.label}</span>
                 </button>
               </li>
             ))}

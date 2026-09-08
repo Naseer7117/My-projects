@@ -82,6 +82,88 @@
   --sp: 0;
 }
 
+/* ============================ LIGHT THEME ============================
+   Toggled via data-theme="light" on <html> (see useTheme.ts). Redefines ONLY
+   the design tokens — every rule reads these, so the whole site re-themes. Dark
+   stays the default (the untouched :root above). Palette: soft off-white
+   surfaces + deep-navy text, keeping the site's violet→cyan→pink accents (a
+   touch deeper for contrast on light). */
+:root[data-theme='light'] {
+  /* Surfaces */
+  --bg: #eef1f8;
+  --bg-elev: #ffffff;
+  --surface: rgba(20, 24, 50, 0.03);
+  --surface-2: rgba(20, 24, 50, 0.06);
+  --glass: rgba(255, 255, 255, 0.72);
+  --border: rgba(20, 24, 50, 0.12);
+  --border-strong: rgba(20, 24, 50, 0.22);
+
+  /* Text */
+  --text: #171a2e;
+  --text-dim: #4a5372;
+  --text-faint: #8b93ad;
+
+  /* Accents — deeper so they read on a light ground */
+  --accent: #6d5cff;
+  --accent-2: #0891b2;
+  --accent-3: #db2777;
+  --accent-soft: rgba(109, 92, 255, 0.14);
+  --accent-glow: rgba(109, 92, 255, 0.4);
+  --gradient: linear-gradient(120deg, #6d5cff 0%, #2f8fd6 50%, #0891b2 100%);
+  --gradient-warm: linear-gradient(120deg, #8b5cf6 0%, #db2777 100%);
+
+  /* Shadows — softer, cooler on light */
+  --shadow: 0 24px 55px -28px rgba(30, 40, 80, 0.35);
+  --shadow-glow: 0 0 0 1px var(--border-strong), 0 28px 65px -34px var(--accent-glow);
+
+  /* Bootstrap overrides re-point automatically via the vars above, but link
+     hover needs a light-appropriate value. */
+  --bs-link-hover-color: #0e7490;
+}
+
+/* Light-theme spot fixes: a few content colours were hardcoded light (they read
+   as near-white on dark). Repoint them to the dark text token on light. The
+   CINEMATIC intro headings keep their white gradients — they sit on the laptop's
+   own always-dark screen, so they're correct there regardless of page theme. */
+:root[data-theme='light'] .section-title {
+  color: var(--text) !important;
+}
+/* the navbar uses a hardcoded dark translucent surface — make it light-tinted */
+:root[data-theme='light'] .main-navbar {
+  background: rgba(255, 255, 255, 0.6);
+}
+:root[data-theme='light'] .main-navbar.is-scrolled {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* NORMAL footer bg is hardcoded dark rgba(5,6,13) → stays a dark band on light.
+   Give it a light translucent surface so its social icons (token-coloured) read. */
+:root[data-theme='light'] .site-footer {
+  background: rgba(255, 255, 255, 0.65);
+  border-top-color: var(--border);
+}
+
+/* Glass/soft cards mix a dark rgba(16,20,38) stop that muddies them on light —
+   repaint with a clean light glass. Tokens handle text/borders already. */
+:root[data-theme='light'] .soft-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(240, 243, 250, 0.85));
+}
+:root[data-theme='light'] .card {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+/* A few surfaces hardcode faint WHITE overlays (rgba(255,255,255,0.0x)) that are
+   invisible on a light ground — give them a faint DARK tint instead. */
+:root[data-theme='light'] .hero-quick-card,
+:root[data-theme='light'] [data-tilt] {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* mono/eyebrow labels (--text-faint) can go too pale on light — nudge darker. */
+:root[data-theme='light'] {
+  --text-faint: #6b7490;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -142,8 +224,15 @@ a:focus {
   overflow: hidden;
   filter: blur(88px) saturate(150%);
   opacity: 1;
-  transform: translate3d(0, calc(var(--sy, 0) * 0.04px), 0);
-  will-change: transform;
+  /* Scroll parallax (--sy) + mobile device-tilt parallax (--tilt-x/y, written by
+     useDeviceTilt from the gyroscope; 0 on desktop so this reduces to the scroll
+     term). The tilt shift is generous here because the aurora is a soft blurred
+     blob — a ~26px drift reads as depth, not jitter. */
+  transform: translate3d(
+    calc(var(--tilt-x, 0) * 26px),
+    calc(var(--sy, 0) * 0.04px + var(--tilt-y, 0) * 26px),
+    0
+  );
 }
 
 /* Particle constellation (canvas, cursor-reactive). */
@@ -155,6 +244,33 @@ a:focus {
   height: 100%;
   pointer-events: none;
   opacity: 0.9;
+}
+
+/* Mobile-only ambient constellation background (see MobileAmbient.tsx). Fixed
+   full-screen behind all content; the tap listener is on window so this stays
+   click-through. Renders nothing on desktop. */
+.mobile-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: block;
+}
+
+/* Mobile-only floating neon line-work wrapper — fixed full-screen behind
+   content, dimmed + edge-masked so it's a subtle backdrop, not a foreground.
+   The inner .floating-paths is absolute:inset:0 so it fills this. */
+.mobile-paths {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  color: var(--accent);
+  opacity: 0.4;
+  -webkit-mask-image: radial-gradient(120% 100% at 50% 30%, #000 0%, #000 50%, transparent 95%);
+  mask-image: radial-gradient(120% 100% at 50% 30%, #000 0%, #000 50%, transparent 95%);
 }
 
 /* Rotating light beam — cinematic sweep behind the content. */
@@ -1001,43 +1117,191 @@ h1, h2, h3, h4, h5, h6 {
 
 .main-navbar__links {
   width: 100%;
-  gap: 0.25rem;
+  gap: 0.5rem; /* room for the pill outlines to breathe */
   list-style: none;
   padding-left: 0;
   margin: 0;
 }
 
-.main-navbar__links .nav-link {
+/* ---------- Theme toggle (moon ↔ sun sliding switch) ---------- */
+.theme-toggle {
   position: relative;
-  border: 0;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 0.92rem;
-  font-weight: 500;
-  padding: 0.4rem 0.2rem;
-  transition: color 0.18s ease;
+  flex: 0 0 auto;
+  width: 58px;
+  height: 30px;
+  margin-right: 0.75rem;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 0 14px -3px var(--accent-glow);
+}
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* moon on the left, sun on the right — the knob slides over them */
+.theme-toggle__icon {
+  position: absolute;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+.theme-toggle__icon--moon {
+  left: 8px;
+  color: #cbd5f5;
+  opacity: 1;
+}
+.theme-toggle__icon--sun {
+  right: 8px;
+  color: #ffd166;
+  opacity: 0.45;
+}
+/* the sliding knob */
+.theme-toggle__knob {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  transform: translate(0, -50%);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #6b74a8, #3a4066);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.35s ease;
+}
+/* LIGHT: knob slides right, becomes a warm sun; icon emphasis swaps */
+.theme-toggle--light .theme-toggle__knob {
+  transform: translate(28px, -50%);
+  background: linear-gradient(145deg, #ffe08a, #ffb443);
+  box-shadow: 0 2px 6px rgba(255, 180, 67, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+.theme-toggle--light .theme-toggle__icon--moon {
+  opacity: 0.4;
+}
+.theme-toggle--light .theme-toggle__icon--sun {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle__knob { transition: none; }
+}
+@media (max-width: 767px) {
+  .theme-toggle { margin-right: 0.5rem; }
 }
 
+/* NEON OUTLINE PILLS — each tab is a rounded chip with a faint always-on accent
+   outline; hover brightens the outline + adds a neon glow; the active tab gets a
+   bright accent ring, an inner glow, and gradient text. The ::after layer is an
+   inner glow that fades in (was the old growing underline). */
+.main-navbar__links .nav-link {
+  position: relative;
+  isolation: isolate; /* keep the ::after glow behind the label without z fights */
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 1.05rem;
+  transition:
+    color 0.2s ease,
+    border-color 0.24s ease,
+    background-color 0.24s ease,
+    box-shadow 0.24s ease,
+    transform 0.18s ease;
+}
+
+/* inner glow layer (fades in on hover/active) */
 .main-navbar__links .nav-link::after {
   content: '';
   position: absolute;
-  left: 0;
-  bottom: 0.1rem;
-  width: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--gradient);
-  transition: width 0.24s ease;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(120% 140% at 50% 120%, var(--accent-soft) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.24s ease;
 }
 
-.main-navbar__links .nav-link:hover,
+.main-navbar__links .nav-link:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(139, 123, 255, 0.08);
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 0 16px -2px var(--accent-glow);
+  transform: translateY(-1px);
+}
+.main-navbar__links .nav-link:hover::after {
+  opacity: 1;
+}
+
+/* active tab — brightest: solid accent ring + inner glow + gradient text */
 .main-navbar__links .nav-link.active {
   color: var(--text);
+  border-color: var(--accent);
+  background: rgba(139, 123, 255, 0.1);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    inset 0 0 12px -4px var(--accent-glow),
+    0 0 18px -4px var(--accent-glow);
+}
+.main-navbar__links .nav-link.active::after {
+  opacity: 1;
+}
+/* gradient wash on the active label */
+.main-navbar__links .nav-link.active .nav-link__label {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.main-navbar__links .nav-link:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.main-navbar__links .nav-link.active::after,
-.main-navbar__links .nav-link:hover::after {
-  width: 100%;
+/* Magnetize particle overlay on each nav tab — accent dots scattered around the
+   tab that get sucked toward its centre on hover (framer drives the x/y). The
+   layer is centred on the tab and pointer-events:none so it never blocks the
+   click; the label sits above it. overflow stays visible so dots can scatter
+   past the tab's box. */
+.nav-link--magnetize {
+  overflow: visible;
+}
+.magnetize-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.magnetize-particles__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px; /* centre each dot on the layer origin */
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px 1px var(--accent);
+  will-change: transform, opacity;
+}
+.nav-link__label {
+  position: relative;
+  z-index: 1; /* keep the text above the particles + glow */
 }
 
 .navbar-toggler {
@@ -1102,7 +1366,8 @@ h1, h2, h3, h4, h5, h6 {
   gap: 2.5rem;
   white-space: nowrap;
   animation: ticker-scroll 36s linear infinite;
-  will-change: transform;
+  /* No static will-change: the running ticker-scroll transform already promotes
+     this layer; the permanent hint was redundant. */
 }
 
 .hero-ticker__inner--footer {
@@ -1890,6 +2155,74 @@ h1, h2, h3, h4, h5, h6 {
   padding: clamp(1.25rem, 3vw, 1.75rem);
 }
 
+/* ---------- Mobile tap / press micro-interactions ----------
+   On touch there is no :hover, so the desktop tilt/hover feedback is dead — the
+   page feels static. These give TACTILE press feedback on tap: interactive
+   surfaces briefly scale down + brighten their border/glow while held, springing
+   back on release. Scoped to touch devices so desktop is untouched. transform +
+   compositor-friendly props only. Reduced-motion drops the scale. */
+@media (hover: none) and (pointer: coarse) {
+  .card,
+  .soft-card,
+  .quick-link,
+  .project-card,
+  .cert-card,
+  .value-card,
+  .skill-cluster,
+  .contact-link,
+  [data-tilt] {
+    transition:
+      transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .card:active,
+  .soft-card:active,
+  .project-card:active,
+  .cert-card:active,
+  .value-card:active,
+  .skill-cluster:active {
+    transform: scale(0.97);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-soft), 0 0 20px -6px var(--accent-glow);
+  }
+  /* data-tilt cards keep their perspective wrapper — press-scale INSIDE it, and
+     use !important to beat the base [data-tilt] transform (same specificity, but
+     the tilt vars are 0 on touch so there's nothing to preserve but the press). */
+  [data-tilt]:active {
+    transform: perspective(1100px) scale(0.97) !important;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-soft), 0 0 20px -6px var(--accent-glow);
+  }
+  .quick-link:active,
+  .contact-link:active {
+    transform: scale(0.98);
+    color: var(--text);
+  }
+  /* Buttons + nav pills give a quick press dip too. */
+  .btn:active,
+  .nav-link:active {
+    transform: scale(0.96);
+  }
+}
+@media (hover: none) and (pointer: coarse) and (prefers-reduced-motion: reduce) {
+  .card:active,
+  .soft-card:active,
+  .project-card:active,
+  .cert-card:active,
+  .value-card:active,
+  .skill-cluster:active,
+  [data-tilt]:active,
+  .quick-link:active,
+  .contact-link:active,
+  .btn:active,
+  .nav-link:active {
+    transform: none;
+  }
+}
+
 /* ---------- About: values + timeline ---------- */
 
 .value-item {
@@ -2346,12 +2679,32 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg);
+  /* Always DARK — this is a cinematic dark-stage opener (constellation, greeting,
+     RGB keyboard, floating paths are all designed for a dark ground). Keeping it
+     dark in light theme avoids a cascade of contrast fixes and reads as an
+     intentional "movie intro" before the (light or dark) page proper. Hardcoded
+     so it ignores the light --bg token. */
+  background: #05060d;
   display: flex;
   align-items: center;
   justify-content: center;
   perspective: 1600px;
 }
+/* The cinematic stage is always dark, so on LIGHT theme its text tokens must
+   stay light (otherwise --text-dim etc. resolve to navy = invisible on dark).
+   Re-pin the dark palette locally inside the stage. */
+:root[data-theme='light'] .cinematic-intro {
+  --text: #eaf0fb;
+  --text-dim: #aab6cc;
+  --text-faint: #6b7690;
+  --accent: #8b7bff;
+  --accent-2: #22d3ee;
+  --accent-3: #f472b6;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.17);
+  --gradient: linear-gradient(120deg, #8b7bff 0%, #43b8ff 50%, #22d3ee 100%);
+}
+
 /* PERF: when the intro scrolls off-screen (JS IntersectionObserver adds this
    class), FREEZE every animation inside it — the 72 drifting path lines and 60
    hue-cycling keys otherwise burn CPU/GPU forever on a section nobody's looking
@@ -2442,6 +2795,25 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   justify-content: center;
   pointer-events: none;
+}
+
+/* Greeting on the MOBILE hero (HomePage). Hidden by default (desktop uses the
+   cinematic's own greeting); shown only ≤767px, left-aligned above the role
+   pill. Its inner .hello-greeting__svg keeps its own sizing. */
+.hero-hello-greeting {
+  display: none;
+}
+@media (max-width: 767px) {
+  .hero-hello-greeting {
+    display: flex;
+    justify-content: flex-start;
+    margin: 0 0 0.25rem -0.4rem;
+    pointer-events: none;
+  }
+  .hero-hello-greeting .hello-greeting__svg {
+    width: min(64vw, 320px);
+    height: clamp(4rem, 18vw, 6rem);
+  }
 }
 .hello-greeting {
   display: inline-flex;
@@ -2678,6 +3050,72 @@ h1, h2, h3, h4, h5, h6 {
 .cine-stat__value { display: block; font-size: 1.15rem; font-weight: 800; color: #fff; }
 .cine-stat__label { font-size: 0.62rem; color: rgba(219, 230, 255, 0.55); }
 .cine-scr__cta { display: flex; flex-wrap: wrap; gap: 0.6rem; will-change: transform, opacity; }
+
+/* MOBILE cinematic — the laptop + its screen were sized for desktop (2-col
+   screen, 70vw laptop) and looked cramped/clipped on a phone. Widen the laptop
+   and give the screen a clean single-column layout: the photo becomes a compact
+   thumbnail ABOVE the name, then name + tagline + stats stack. The owner wants
+   the same laptop experience — photo included — just legible on mobile. */
+@media (max-width: 767px) {
+  .cine-laptop {
+    width: 92vw;
+    margin-top: -2vh;
+  }
+  .cine-scr {
+    grid-template-columns: 1fr; /* single column: photo, then text */
+    gap: 0.4rem;
+    padding: 0.7rem 0.85rem;
+    align-content: center;
+    justify-items: center;
+    text-align: center;
+  }
+  .cine-scr__media {
+    display: flex; /* SHOW the photo (as a small centred thumbnail) */
+  }
+  .cine-scr__photo {
+    width: 68px;
+    max-width: 68px;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%; /* compact circular avatar on the small screen */
+    margin-bottom: 0.15rem;
+  }
+  .cine-scr__name {
+    font-size: clamp(1.1rem, 6vw, 1.6rem);
+  }
+  .cine-scr__tagline {
+    font-size: 0.72rem;
+    line-height: 1.25;
+    /* clamp to 3 lines so it never overruns the screen */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cine-scr__summary {
+    display: none; /* keep the small screen uncluttered */
+  }
+  .cine-scr__stats {
+    gap: 0.35rem;
+  }
+  .cine-scr__cta {
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .cine-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.72rem;
+  }
+  /* GREETING on mobile: it sat high in an empty gap and was easy to miss (and
+     the write-on animation leaves it near-blank between words). Pull it DOWN
+     closer to the kicker/headline so it reads as one unit, and make it bigger. */
+  .hello-greeting-line {
+    top: 24vh;
+  }
+  .hello-greeting__svg {
+    width: min(72vw, 340px);
+    height: clamp(4.5rem, 20vw, 7rem);
+  }
+}
 .cine-btn {
   padding: 0.55rem 1.1rem;
   border-radius: 999px;
@@ -2799,9 +3237,44 @@ h1, h2, h3, h4, h5, h6 {
    every other page stays compact. */
 .site-footer--landing {
   position: relative;
-  overflow: hidden; /* clip the robot layer to the footer */
+  overflow: hidden; /* clip the robot + ribbon + gradient layers to the footer */
   min-height: 460px; /* room for the blended robot */
   perspective: 900px; /* real depth for the robot's mouse-tilt */
+}
+
+/* U-shaped breathing glow spread across the whole footer bottom (see
+   FooterGlow.tsx). The DEEPEST layer — rendered first in the DOM, z-index:0, so
+   it paints under the ribbons/robot (also z-0). The wide/short radial gradient
+   (anchored below bottom-centre) curves up at the left+right edges → a U; the JS
+   breathes its radius. Decorative, click-through. */
+.footer-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.footer-glow__layer {
+  position: absolute;
+  inset: 0;
+  filter: blur(8px); /* soften the band so it reads as a glow, not a hard arc */
+  /* the JS sets `background` (the animated U-shaped radial-gradient) each frame */
+}
+
+/* Neon ribbon-trails that chase the cursor — the DEEPEST footer layer, behind
+   the robot (z-0, DOM-first so it paints under). Additive blend already baked
+   into the canvas. pointer-events:none so it never blocks the robot's cursor
+   tracking or the orbit links; edge-masked so the trails fade into the footer. */
+.footer-ribbons {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, #000 55%, transparent 92%);
+  mask-image: radial-gradient(120% 120% at 50% 50%, #000 55%, transparent 92%);
 }
 .site-footer--landing .footer-inner {
   position: relative;
@@ -2884,14 +3357,11 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 0.4rem;
   }
   /* Robot is gated off on phones → drop its 460px reservation so the mobile
-     landing footer isn't a big empty box (it hugs the orbit + credit instead).
-     padding-bottom already reserved for the mascot corner via the ≤767px
-     .site-footer rule elsewhere. */
+     padding-bottom reserved for the mascot corner via the ≤767px .site-footer
+     rule elsewhere. The robot NOW loads on mobile too (owner's ask) — give it a
+     shorter-but-real height so it has room to blend without a giant empty box. */
   .site-footer--landing {
-    min-height: 0;
-  }
-  .site-footer--landing .footer-inner {
-    padding-bottom: 0;
+    min-height: 340px;
   }
 }
 

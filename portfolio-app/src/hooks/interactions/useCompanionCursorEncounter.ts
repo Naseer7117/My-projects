@@ -75,6 +75,18 @@ export function useCompanionCursorEncounter(
    * from making him wave on loop (read as a glitch in the live demo). */
   const lastGreetAt = useRef<number>(-Infinity);
 
+  // Read the changing values through refs so the pointermove effect subscribes
+  // ONCE (deps: [enabled]) instead of tearing down + re-binding the listener on
+  // every reducer dispatch and every parent re-render (isIdleNow is a fresh
+  // closure each render). x/y are stable MotionValues read via .get(); the
+  // listener's decision logic is unchanged, so behavior is identical.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const isIdleNowRef = useRef(isIdleNow);
+  isIdleNowRef.current = isIdleNow;
+  const requestWalkRef = useRef(requestWalk);
+  requestWalkRef.current = requestWalk;
+
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
     if (!hasFinePointer() || prefersReducedMotion()) return;
@@ -90,8 +102,9 @@ export function useCompanionCursorEncounter(
       const dy = e.clientY - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (state.phase === 'dormant') {
-        if (!isIdleNow()) return; // never interrupt an in-flight walk/context-beat
+      const st = stateRef.current;
+      if (st.phase === 'dormant') {
+        if (!isIdleNowRef.current()) return; // never interrupt an in-flight walk/context-beat
         if (now - lastGreetAt.current < COMPANION_GREET_COOLDOWN_MS) return; // one greet, then a long breather
         if (dist < COMPANION_NOTICE_RADIUS) {
           if (noticingSince.current === null) noticingSince.current = now;
@@ -101,11 +114,11 @@ export function useCompanionCursorEncounter(
         } else {
           noticingSince.current = null;
         }
-      } else if (state.phase === 'noticing') {
+      } else if (st.phase === 'noticing') {
         if (dist >= COMPANION_NOTICE_RADIUS) {
           dispatch({ type: 'reset' });
           noticingSince.current = null;
-        } else if (now - state.since >= COMPANION_APPROACH_DELAY_MS) {
+        } else if (now - st.since >= COMPANION_APPROACH_DELAY_MS) {
           const offsetX = e.clientX + (dx < 0 ? COMPANION_APPROACH_OFFSET : -COMPANION_APPROACH_OFFSET) - size / 2;
           const offsetY = e.clientY - size / 2;
           const target: Point = { x: offsetX, y: offsetY };
@@ -113,7 +126,7 @@ export function useCompanionCursorEncounter(
           // wave to a high-five; a merely-nearby one gets the wave. This is
           // the ONLY branch — no chase/flee reintroduction.
           const arrival: WalkArrivalAction = dist < COMPANION_HIGHFIVE_RADIUS ? 'highFive' : 'waving';
-          requestWalk({ target, arrival, expression: 'happy', holdMs: COMPANION_ACKNOWLEDGE_MS });
+          requestWalkRef.current({ target, arrival, expression: 'happy', holdMs: COMPANION_ACKNOWLEDGE_MS });
           lastGreetAt.current = now;
           dispatch({ type: 'walked' });
           noticingSince.current = null;
@@ -123,6 +136,7 @@ export function useCompanionCursorEncounter(
 
     window.addEventListener('pointermove', onMove, { passive: true });
     return () => window.removeEventListener('pointermove', onMove);
+    // Subscribe once per enable — the changing values are read through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, state, x, y, requestWalk, isIdleNow]);
+  }, [enabled, x, y]);
 }

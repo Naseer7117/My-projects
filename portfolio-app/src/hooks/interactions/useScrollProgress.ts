@@ -13,6 +13,12 @@ export function useScrollProgress(): void {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const root = document.documentElement;
+    // Resolve the navbar ONCE — it's rendered unconditionally, so the node is
+    // stable for this effect's lifetime; querying it every scroll frame was
+    // wasted work. (scrollHeight stays per-frame on purpose: on the long-scroll
+    // Home the body height changes without a resize event, so caching it would
+    // make --sp drift.)
+    const nav = document.querySelector('.main-navbar');
     let raf = 0;
 
     const onScroll = () => {
@@ -23,7 +29,6 @@ export function useScrollProgress(): void {
         const progress = max > 0 ? Math.min(1, window.scrollY / max) : 0;
         root.style.setProperty('--sp', `${progress}`);
         root.style.setProperty('--sy', `${window.scrollY}`);
-        const nav = document.querySelector('.main-navbar');
         if (nav) {
           nav.classList.toggle('is-scrolled', window.scrollY > NAVBAR_SCROLL_THRESHOLD);
         }
