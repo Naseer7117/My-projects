@@ -897,6 +897,345 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   chatgpt→chatgpt.com links OK; CDN-blocked → graceful null, app up. All 4 gates
   green, prod build code-split (main 372K). Files: SplineScene.tsx, FooterRobot.tsx,
   ErrorBoundary.tsx, SocialOrbit.tsx, App.css. NOT pushed.
+- **2026-08-01 (cinematic scroll intro on Home)** — Owner gave a shadcn/Tailwind/
+  Next/GSAP "cinematic-hero" sample (scroll-pinned reveal + iPhone app mockup);
+  chose: cinematic INTRO then normal scroll, ADD gsap, card features the REAL
+  hero (not the fake app). Installed `gsap`. New `components/effects/
+  CinematicIntro.tsx` (adapted to plain CSS + site tokens, NO Tailwind/cn):
+  GSAP ScrollTrigger pins the opener for ~2600px of scroll — hero tagline
+  (silver-gradient) reveals, a deep-blue card rises + expands to fill, shows the
+  REAL photo/name/tagline/summary + the 4 portfolio metric chips + View-projects/
+  Get-in-touch (navigate), mouse-follow sheen, then the card pulls back + lifts
+  away → pin releases into the existing long-scroll (About→…→Contact, mascot,
+  footer all intact below). Wired in routes.tsx at the top of the `home` stack.
+  GATED to desktop: `enabled = !reduced-motion && hasFinePointer && innerWidth>900`
+  (the width check is the reliable one — headless/emulated pointer-media reports
+  fine even on mobile); on mobile/reduced-motion renders null → the normal
+  HomePage hero is the opener (no scroll-hijack on touch). TWO BUILD/TEST FIXES
+  found here: (1) `gsap/ScrollTrigger` ships ESM → CRA Jest (doesn't transform
+  node_modules) failed to parse it and BROKE THE WHOLE SUITE; fixed with a
+  package.json `jest.transformIgnorePatterns` that keeps CRA's defaults (incl the
+  CSS-module exception) but whitelists gsap for transform. (2) GSAP bundled into
+  main.js (360→488K); fixed by `React.lazy(() => import(CinematicIntro))` +
+  `<Suspense fallback={null}>` in routes.tsx → GSAP is its own chunk, main back
+  to 372K. CDP-verified: desktop pin scrubs (card grows→pulls back→lifts) and
+  releases to the sections+footer, 0 console errors; mobile/reduced-motion → no
+  cinematic, 0 horizontal overflow at 360/390. All 4 gates green. Files:
+  CinematicIntro.tsx (new), routes.tsx, App.css, package.json. NOT pushed.
+- **2026-08-01 (cinematic reworked to a LAPTOP-opening + reload-to-top fix)** —
+  Owner: headline should be "I am / Naseeruddin Shaik" (drop the tagline text);
+  on scroll a LAPTOP opens and shows the hero on its SCREEN with a visible
+  keyboard; then normal landing; AND reload must start at the top.
+  • CinematicIntro reworked: headline is now `I am` + the name (silver gradient).
+    The card became a 3D LAPTOP — `.cine-laptop__screen` is the lid
+    (`transform-origin: bottom`, GSAP animates `rotationX` -90°→0° = closed→open),
+    holding the hero (photo/name/tagline/summary/stats/CTAs) as the "screen"
+    content that fades in as it opens; `.cine-laptop__base` is a `rotateX(62deg)`
+    tilted deck with 60 keys + trackpad + hinge. Sequence: headline recedes →
+    closed laptop rises → lid opens → screen powers on + content → hold → whole
+    laptop lifts away → pin releases into the long-scroll. Same desktop-only gate.
+  • RELOAD-TO-TOP fix (App.tsx): browsers default `history.scrollRestoration:
+    'auto'` restored the last scroll on reload → you'd land mid-cinematic. Added
+    a mount-once effect: `history.scrollRestoration = 'manual'` + `scrollTo(0,0)`.
+    CDP-verified: scroll to 2952 → reload → scrollY 0.
+  CDP-verified: headline text correct; lid transform goes matrix3d(-90°)→
+  matrix(open); keyboard 60 keys; screen content visible on open; releases to
+  About+footer; mobile/reduced-motion → no cinematic; 0 errors; 4 gates green,
+  main 372K (GSAP still lazy-chunked). Files: CinematicIntro.tsx, App.css,
+  App.tsx. NOT pushed.
+- **2026-08-01 (laptop-open polish)** — Owner: the laptop didn't read as a real
+  lid opening + dead space below. Reworked the ASSEMBLY: `.cine-laptop` is a
+  flex column (lid stacked ON the deck, `justify-content:flex-end`) CENTERED in
+  the stage with `margin-top:-5vh` so the open laptop stays vertically centred
+  (killed the big empty band under the old low-anchored base). Lid + deck now
+  share the hinge LINE (deck top edge = lid bottom edge; CDP: screenBottom ===
+  baseTop ≈ 637). Lid closed state -92° (lying flat on the deck); GSAP opens it
+  slowly (`rotationX -92→0`, duration 4 in the pinned tl) so it reads as a lid
+  lifting, and the site content pops onto the screen in the tail of the open
+  (positions 3.6–4.5). Deck tilt eased 62°→52°, compact height. CDP-verified:
+  closed lid ~16px tall → opens to 538px, hinge connected, content reveals on
+  the screen (photo/name/stats/CTAs), releases to the page; mobile/reduced-motion
+  still gate off; 4 gates green, main 372K. Files: CinematicIntro.tsx, App.css.
+  NOT pushed.
+- **2026-08-01 (fix: landing cards had no scroll-reveal pop)** — Owner: cards on
+  the landing page weren't animating in on scroll. Root cause: index.html's
+  `reveal-fallback` safety net (a FIXED `setTimeout`) force-reveals ALL
+  `[data-reveal]` with `opacity:1 !important; transform:none !important` if JS
+  stalls — fine when Home was one short page, but now the landing opens with the
+  ~2800px PINNED cinematic, so the visitor is still in the intro when the timer
+  fires → it slapped `reveal-fallback` on the root and permanently killed every
+  card's scroll-in animation (CDP: root had `reveal-fallback`, cards
+  opacity:1/transform:none, static). Fix: the fallback is only for a FAILED JS
+  boot, so index.html now stores its id on `window.__revealFallbackTimer` and
+  App.tsx clearTimeout()s it on mount (React booted ⇒ JS works ⇒ net not needed);
+  also bumped 4s→8s as a cushion. CDP-verified: reveal-fallback NOT on root after
+  boot; a below-fold card is opacity:0/hidden before scroll, gets `is-in` +
+  0.95s transition and climbs 0→1 when scrolled in; grid `--rd` stagger intact
+  (0/0/70/140ms); reduced-motion still shows all cards (no regression, resilience
+  net still fires if JS truly fails). 4 gates green. Files: public/index.html,
+  App.tsx. NOT pushed.
+- **2026-08-01 (holographic cert badges, landing only + reveal enhance)** — Owner
+  gave a shadcn/Tailwind Product-Hunt "award-badge" sample (holographic foil +
+  3D mouse-tilt) and wanted the cert tiles to LOOK like it, LANDING page only.
+  The sample is literal PH branding + heavy per-card matrix JS + 10 animated SVG
+  overlays — so adapted the LOOK, not the branding/weight: a `holoBadges` prop on
+  SkillsPage (true only in the `#home-skills` stack via routes.tsx; standalone
+  Skills page stays plain). Holo cards get `.cert-card--holo` + two decorative
+  layers — `.cert-holo--foil` (a conic multi-hue gradient, blurred, mix-blend
+  screen, 7s rotate = the iridescent sheen) and `.cert-holo--shine` (diagonal
+  sweep on hover) — layered over the EXISTING `data-tilt` 3D lean (bumped 4→8 for
+  holo), all plain CSS (no new dep, far lighter than the sample's per-frame
+  matrix math). Reveal enhance: the cert grid now uses `data-reveal='scale'` so
+  the tiles pop-scale in with the `--rd` stagger. Reduced-motion freezes the foil
+  spin + shine (static sheen kept). CDP-verified: #home certs 7/7 holo + foil +
+  scale-reveal; standalone #skills 0 holo (plain); mobile 7 holo, 0 h-overflow,
+  cert titles readable (opacity>0.9, sheen doesn't obscure text). 4 gates green.
+  Files: SkillsPage.tsx, routes.tsx, App.css. NOT pushed.
+- **2026-08-01 (hero entrance after the laptop cinematic)** — Owner: after the
+  laptop lifts away, the real hero (name + photo) just appeared FLAT while
+  everything below animated. Added a hero entrance in CinematicIntro.tsx. Key
+  gotchas solved: (1) `.hero-page` is a SIBLING of the cinematic root, so the
+  hero logic must live OUTSIDE `gsap.context(..., root)` — context scopes
+  selectors to root's descendants, so root-scoped `.hero-page` selectors matched
+  NOTHING (that was why 3 earlier attempts read opacity 1). Now resolves real
+  elements via `document.querySelector('.hero-page').querySelectorAll(...)`.
+  (2) The pin-spacer is ~3700px tall and the hero scrolls INTO view (~3200px)
+  WHILE still inside the pin range → the pin's onLeave/scrub tail fire too late.
+  So: `gsap.set` arms the hero hidden (autoAlpha 0, y 60, blur), and a fresh
+  IntersectionObserver plays a timed staggered entrance (autoAlpha/y/blur,
+  expo.out) the first time the hero crosses in. CDP-verified: hero opacity 0 at
+  top + at 3050px, climbs 0→0.39→0.83→1 as it enters ~3200px, settles 1. SAFETY:
+  the whole effect is gated by `enabled` (desktop+motion) — on mobile/reduced-
+  motion it returns null BEFORE gsap.set runs, so the hero is never hidden
+  (CDP: opacity 1, cinematic absent). Cleanup disconnects the observer +
+  clearProps the hero on unmount. 4 gates green. Files: CinematicIntro.tsx.
+  NOT pushed.
+- **2026-08-11 (iPhone-setup "hello" greeting above the role kicker)** — Owner:
+  put the iPhone boot "hello / hola / bonjour…" greeting in the empty space above
+  "SOFTWARE ENGINEER" on the landing cinematic — cursive script, cycling all
+  languages with the iPhone cross-fade, themed to the site. New
+  `components/effects/HelloGreeting.tsx`: one greeting at a time from a 21-entry
+  world list (Latin + JP/CN/KR/HI/AR/RU/GR/HE/PA scripts), cross-fading every
+  1600ms (fade-out 320ms → swap → fade-in via `.is-in` class); reduced-motion →
+  static "hello". Rendered as a `.cine-line` above `.cine-kicker` in
+  CinematicIntro (so it reveals + recedes-on-scroll with the headline). Apple's
+  script font is proprietary → owner chose **Dancing Script** (added to the
+  existing non-blocking Google Fonts link in index.html — both the `media=print`
+  load and the noscript). Styled `.hello-greeting__word`: Dancing Script ~76px,
+  accent→cyan→pink gradient text (site theme), drop-shadow, @supports fallback +
+  reduced-motion static. CDP-verified: greeting present ABOVE the kicker,
+  Dancing Script 76px gradient text, cycles hello→hola→bonjour→ciao→…→こんにちは;
+  reduced-motion/mobile → cinematic (and greeting) absent, normal hero. 4 gates
+  green, `Dancing+Script` confirmed in built index.html (ships in prod). Files:
+  HelloGreeting.tsx (new), CinematicIntro.tsx, App.css, public/index.html. NOT
+  pushed.
+- **2026-08-11 (hello greeting reworked: writes-on, bigger, higher)** — Owner:
+  the cross-fade didn't look iPhone-like + moved too fast + sat too low. Reworked
+  HelloGreeting.tsx: each word now REVEALS left-to-right as if written by a pen —
+  the handwriting-font text (Dancing Script) has a `clip-path: inset(0 100% 0 0)`
+  that sweeps open to `inset(0 0 0 0)` (@keyframes hello-write, 1500ms), with a
+  glowing pen-tip (`.hello-greeting__pen`) riding the leading edge (@keyframes
+  hello-pen), then hold 1000ms + fade 550ms, next word writes. (First tried true
+  SVG stroke-dashoffset draw with hand-authored letterform paths — owner-approved
+  approach — but the hand-drawn cursive paths were illegible; the clip-reveal
+  over a real handwriting font keeps legibility AND reads as "being written".)
+  Latin greetings only (hello/hola/bonjour/ciao/olá/hallo/hej/ahoj/salut/ahoy).
+  BIGGER: font-size clamp up to 6.5rem (~104px, was ~76). HIGHER: `.hello-
+  greeting-line` is now `position:absolute; top:clamp(6vh,12vh,16vh)` inside
+  `.cine-hero-text` (pulled out of the centred flow into the empty upper space).
+  SLOWER: ~3s per word cycle. CDP-verified: word big (104px) + legible Dancing
+  Script at topY~231, clip-path sweeps 99%→0% (writes L→R), cycles languages;
+  recedes with `.cine-hero-text` on scroll (opacity 1→0 by 1500px, no lingering
+  over the laptop); reduced-motion/mobile → cinematic+greeting absent, normal
+  hero. tsc+eslint green (tests+build backgrounded, slow machine). Files:
+  HelloGreeting.tsx, App.css. NOT pushed.
+- **2026-08-11 (hello greeting: native scripts + REAL stroke-draw + no overflow)**
+  — Owner: greetings must be in NATIVE scripts (नमस्ते Devanagari, నమస్కారం
+  Telugu…), the clip-reveal only SLID the word (not writing), and text
+  overflowed the box. Reworked HelloGreeting.tsx to the genuine iPhone technique:
+  each greeting is an SVG `<text>` whose GLYPH OUTLINES are stroked
+  (`.hello-greeting__stroke` fill:none stroke:url(#hello-grad)), and
+  `stroke-dashoffset` animates 1600→0 (@keyframes hello-draw) so the letters
+  TRACE themselves on like a pen — works for ANY script because it strokes the
+  real font glyphs; a fill fades in behind (@keyframes hello-fill) so the held
+  word reads solid. Curated native-script set with per-word font-family so
+  complex scripts pick correct glyphs: Latin=Dancing Script; नमस्ते=Noto/Nirmala
+  Devanagari; నమస్కారం=Noto/Nirmala Telugu; 你好/こんにちは=CJK; 안녕하세요=KR;
+  مرحبا=Arabic (system-font fallbacks, verified rendering on Windows). OVERFLOW
+  FIX: `.hello-greeting__svg` is a fixed box (width min(46vw,460px), viewBox
+  600x180, overflow:hidden, preserveAspectRatio meet) so even the long Telugu
+  word (textW 403/460) stays inside. CDP-verified: dashoffset draws 1600→0
+  (real trace, not slide); नमस्ते + నమస్కారం render as CORRECT native glyphs (not
+  tofu — screenshots confirm), fitsBox:true for all incl Telugu/Arabic; still up
+  top + big; reduced-motion/mobile → absent. All 4 gates green. Files:
+  HelloGreeting.tsx, App.css. NOT pushed.
+- **2026-08-11 (laptop pin faster + scroll-driven hero reveal)** — Owner: the
+  laptop took too long to scroll through, and after it the hero info loaded
+  slowly (fixed timer) instead of tracking scroll speed. CinematicIntro.tsx:
+  (1) pin `end` 2800→1650, `scrub` 1→0.5, dead hold 2→1 → pin-spacer 3700→2550px
+  (~31% less scroll, less lag). (2) Hero reveal was a fixed
+  `gsap.to(heroEls,{duration:1.1})` fired by an IntersectionObserver — replaced
+  with a SCRUBBED ScrollTrigger (scrub 0.5) so it fills ACCORDING TO SCROLL
+  POSITION: fast scroll → info snaps in fast, slow → eases in. KEY GOTCHA: can't
+  trigger off the hero's position (during the pin its on-screen position is
+  distorted and snaps up at release → a position band gets consumed in one
+  frame). So the pin timeline got `id:'cine-pin'` and the hero trigger uses
+  FUNCTION start/end anchored to absolute scroll px around the pin's end
+  (`pin.end-550 … pin.end+120`, invalidateOnRefresh). CDP-verified: pin-spacer
+  2550px; fast-scroll to 2300 → hero opacity 1 within 0.7s; slow-scroll shows a
+  0→1 gradient across the band; laptop still opens correctly; mobile/reduced-
+  motion → hero visible (opacity 1), not hidden; 0 console errors. tsc+eslint
+  green (tests+build backgrounded). Files: CinematicIntro.tsx. NOT pushed.
+- **2026-08-12 (RGB glowing laptop keyboard)** — Owner: make the laptop keyboard
+  an RGB keyboard glowing in a neon pattern. Each of the 60 `.cine-key`s now gets
+  a `--k` = (col + row) inline (CinematicIntro.tsx keyboard map, 15-col grid), and
+  `.cine-key` (App.css) has a vivid hsl neon face + colored box-shadow glow and a
+  `@keyframes cine-key-rgb` `filter: hue-rotate(0→360)` 4s loop; per-key
+  `animation-delay: calc(var(--k) * -0.22s)` offsets the hue so the neon colour
+  sweeps DIAGONALLY across the board (rainbow-wave like a gaming keyboard).
+  Reduced-motion holds a static neon colour. CDP-verified: 60 keys animating
+  cine-key-rgb; two frames 0.8s apart show the full spectrum ROLLED across the
+  board (wave moving); screenshots show orange→…→red neon glow. tsc+eslint green
+  (tests+build backgrounded). Files: CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-13 (hero reveal timing + brighter keys)** — Owner: after the laptop
+  the hero image/text gave no animation, and the RGB keys were too dark. (1) HERO
+  REVEAL: the scrubbed reveal was anchored to absolute px around `pin.end`, so it
+  COMPLETED while the laptop was still lifting away — you never saw it. Root cause
+  confirmed via CDP: hero finished (opacity 1) at sy~2520, but the hero doesn't
+  reach a viewable spot until sy~2600+. The old "laptop distorts hero position
+  during pin" worry no longer applies — CDP shows the laptop is `opacity:0` and
+  scrolled ~1700px off-screen well BEFORE the hero enters. So the reveal now uses
+  a normal element-based trigger on `.hero-page` (`start:'top 92%'`,`end:'top
+  42%'`, scrub 0.5) — blur→rise plays out IN VIEW, paced to scroll. CDP-verified:
+  title fades over heroTop 896→598, photo staggers over 598→397; mid-scroll
+  screenshot shows the portrait still blurred/translucent while the title is in.
+  (2) BRIGHTER KEYS: `.cine-key` HSL lightness 62/42% → 75/58% and glow alphas
+  0.75/0.4 → 0.9/0.55 (App.css). Screenshot confirms bright lit spectrum, no
+  longer dark. tsc+eslint green (tests+build backgrounded). Files:
+  CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-13 (edge-lit keys)** — Owner: still felt dark; light the key BORDERS,
+  not the whole face, so it reads lighter. `.cine-key` (App.css) now has a DARK
+  key body (`#14161d→#0c0d12` gradient, was a solid neon face) with a glowing neon
+  `border: 1.5px solid hsl(300 100% 68%)` + inset/outer glow — hue-rotate spins
+  the ring/glow through the spectrum, so the wave flows around the EDGES not the
+  fill (like real per-key RGB backlighting). CDP-verified: 60 keys, border color
+  neon (rgb 255,92,255) over transparent-ish dark bg; two frames 0.9s apart show
+  the rim colours shifted (wave still moving). tsc+eslint green (tests+build
+  backgrounded). Files: App.css only. NOT pushed.
+- **2026-08-19 (trim dead scroll below the laptop)** — Owner: too much empty gap
+  below the laptop before the hero arrives. CDP showed the laptop was fully faded
+  (`.cine-laptop` opacity 0) by sy≈1867 but the pin held to 2550 — a ~680px dead
+  band. Fix in CinematicIntro.tsx: pin `end:'+=1650'→'+=1200'` (pin-spacer 2550→
+  2100), trailing hold `.to({},{duration:1})→0.4`, and collapsed the two-stage
+  lift-away (`-16vh` 1.1 + `-135vh` 1.2 = ~2s of dead scroll travelling
+  off-screen) into ONE `y:'-70vh' autoAlpha:0` 1.2 exit (it fades as it goes, so
+  it needn't travel a full screen-and-a-third). CDP-verified: laptop now clears at
+  sy≈1447 (was 1867) with the hero already rising right behind it (heroTop 933 and
+  climbing), pin releases 450px sooner; screenshot at sy1500 shows the hero
+  entering the viewport, no long void. Hero reveal still element-anchored to
+  `.hero-page` so it re-measures and plays in view regardless of the shorter pin.
+  tsc+eslint green (tests+build backgrounded). Files: CinematicIntro.tsx. NOT
+  pushed.
+- **2026-08-19 (name "jumps out of the screen")** — Owner: before the laptop, the
+  "Naseeruddin Shaik" name just disappeared; make it POP toward the viewer like
+  it's coming out of the screen, THEN the laptop comes. Replaced the old single
+  `.to('.cine-hero-text',{scale:1.08,autoAlpha:0,blur})` exit (a flat dissolve)
+  with a per-element sequence at the head of the pin timeline (CinematicIntro.tsx):
+  `.cine-headline` gets an anticipation dip (`scale:0.9`, 0.28) then a lunge toward
+  the camera (`scale:2.4, y:-70, autoAlpha:0, blur(10px)`, power3.in, 0.85); the
+  rest (greeting/kicker/scroll-cue) fade back separately; the laptop rise-in was
+  pushed to +0.55 so it follows the pop. Added `will-change` to `.cine-headline`
+  (App.css). `.cinematic-intro` already has `perspective:1600px` + `overflow:hidden`
+  so the giant name flies past the edges (reinforces "out of the screen"). CDP-
+  verified: name lifts 0→-70 while opacity 1→0 and the laptop rises 0→1 behind it;
+  lunge screenshot shows the enlarged name spanning the viewport as the RGB
+  keyboard enters. tsc+eslint green (tests+build backgrounded). Files:
+  CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-19 (constellation cursor mesh bg)** — Owner supplied a shadcn/Tailwind/
+  Next "ConstellationGrid" sample; wanted it as the interactive background of the
+  laptop/scroll area. Adapted to THIS stack (new
+  components/effects/ConstellationGrid.tsx): dropped `'use client'`, the Tailwind
+  wrapper, title overlay and dark-mode media query; kept the physics engine
+  (Hooke's-law spring grid, cursor-speed shockwave repulsion, distance-culled
+  connections, proximity accent highlight + radar rings + hex readout). Key
+  adaptations: canvas is `alpha:true` + `clearRect` (transparent) so it LAYERS
+  over the cinematic bg/aurora instead of painting black; sized to its PARENT
+  (`.cinematic-intro`, 100vh) via `host.getBoundingClientRect()` not the window;
+  cursor tracked in the host's LOCAL space and ignored when outside the intro
+  rect; colours read from `--text`/`--accent` tokens (hex→"r,g,b"); reduced-motion
+  → renders nothing; `ctx.setTransform` (not `ctx.scale`, which compounds per
+  resize). It REPLACES the old static `.cinematic-intro__grid` div at z-0 (behind
+  headline z-10 / laptop z-20); pointer-events stay ON to drive shockwaves; a
+  radial mask feathers the mesh edges. CDP-verified: canvas mounts 1377x900,
+  draws (2800 alpha px), a fast CDP cursor sweep visibly scatters the node grid
+  (shockwave) with radar ring + hex "93:42" readout, calm grid elsewhere; text
+  overlays sit cleanly on top. tsc+eslint green (tests+build backgrounded). Files:
+  ConstellationGrid.tsx (new), CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-19 (floating-paths line-work bg)** — Owner supplied a second
+  shadcn/Tailwind/Next + framer sample ("BackgroundPaths"); wanted the MOVING
+  curved lines added to the same scroll area as an ADDITIONAL layer (nothing
+  removed). New components/effects/FloatingPaths.tsx: kept only the FloatingPaths
+  SVG (2 mirrored 36-path fans, position ±1); dropped 'use client', Tailwind
+  wrapper, title/letter animation, shadcn Button, and the 3 new deps (framer
+  already present; radix-slot/cva only served the Button). GOTCHA: the sample
+  animates the lines with framer `motion.path` pathLength/pathOffset — but our
+  `<LazyMotion features={domAnimation}>` does NOT include the SVG path-drawing
+  feature, so `m.path` renders STATIC (CDP-confirmed: pathLength=1, dasharray
+  "1 1", dashoffset "0" unchanged across 3 frames, no error). Switched to plain
+  CSS: `pathLength={1}` normalises each path to 1 unit, `stroke-dasharray:.4 .6`,
+  `@keyframes floating-paths-drift { stroke-dashoffset 1→0 }`, per-line
+  `--fp-dur` (20–35s) + `--fp-dir` (mirrored fan runs reverse). Native, zero
+  bundle cost. Layer: `.floating-paths` z-0 (DEEPEST), constellation bumped to
+  z-1, headline z-10, laptop z-20; `color:var(--accent)`→currentColor strokes,
+  opacity .5, radial edge mask, pointer-events:none, reduced-motion display:none.
+  `preserveAspectRatio="none"` stretches the fans to fill. CDP-verified: 72 paths,
+  dashoffset animates (.868→.847→.824 across frames), screenshot shows the accent
+  curved line-work drifting under the constellation with the headline clean on
+  top; no strict-mode errors. tsc+eslint green (tests+build backgrounded). Files:
+  FloatingPaths.tsx (new), CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-19 (perf pass — smooth on all devices, NOTHING removed)** — Owner: site
+  feels heavy, make it smooth + render without a GPU, keep every component. CDP
+  profiled FIRST: 179 concurrent CSS animations at idle, idle FPS 31; a Chrome
+  trace showed the cost is spread across many small animations (UpdateLayoutTree
+  ~293ms/2.5s) + the constellation rAF, NOT one villain, and it all ran even when
+  the intro was scrolled OFF-screen. Fixes (all keep the components, just lighter):
+  (1) BIGGEST WIN — intro visibility gate: IntersectionObserver on `.cinematic-
+  intro` (200px rootMargin) toggles `is-offscreen`; CSS `.is-offscreen *
+  {animation-play-state:paused!important}` freezes all 132 intro animations (72→
+  now 36 paths + 60 keys) and the constellation's rAF halts via a new `active`
+  prop (effect dep). Result: scrolled-past FPS 31→64, 0 intro animations running;
+  About/Skills/deep-page all 57–64 (was 31). (2) FloatingPaths 72→36 lines (18/
+  fan, `i*2` keeps the spread) — animated SVG stroke-dashoffset isn't GPU-
+  composited so each line re-renders/frame. (3) `.cine-key` dropped
+  `will-change:filter` (was force-promoting 60 GPU layers = heavy VRAM on iGPUs).
+  (4) Constellation connection pass O(n²)→O(n): scan only ±2 grid-neighbours
+  (index=col*rows+row) instead of all pairs (~118k→few k checks; pixel-identical,
+  screenshot-verified). (5) New lib/env `isLowPowerDevice()` (cores<=4 || mem<=4);
+  constellation uses it → spacing 55→90 + DPR cap 2→1 on weak hardware (fewer
+  nodes/lines/pixels). Top-of-page still ~40 FPS (inherently heaviest — 3 bg
+  systems stacked there); everything else buttery. All layers visually intact
+  (constellation mesh, drifting paths, greeting, name, mascot, ticker). Reduced-
+  motion still fully disables the heavy bits. tsc+eslint green (tests+build
+  backgrounded). Files: ConstellationGrid.tsx, FloatingPaths.tsx, CinematicIntro.
+  tsx, lib/env.ts, App.css. NOT pushed.
+- **2026-08-19 (mobile hero entrance — less plain)** — Owner: mobile looks very
+  plain (all the cool stuff is desktop-gated). CDP inventory: mobile already runs
+  38 anims (aurora, ticker, hero-word letters, portrait shine/scan, 53
+  data-reveal) and the base `.is-ready [data-reveal]` reveal ALREADY rises 44px +
+  unblurs — BUT the hero's above-fold cluster (pill/tagline/summary/intro/CTA) all
+  had `--rd`=0, so they revealed SIMULTANEOUSLY on load (movement happens but all
+  at once in <1s → reads as "just appeared"). Root-cause fix was just STAGGER, not
+  a new animation: added inline `--rd` (80/520/640/740/860ms) to those 5 hero
+  elements in HomePage.tsx so they CASCADE in one after another (badge → [name
+  letters via existing hero-word --i] → tagline → summary → intro → CTAs). Reuses
+  the existing reveal system, zero new CSS keyframes/JS, GPU-cheap, reduced-motion
+  still flattens it, also improves the desktop hero reveal. (An interim
+  `.reveal-rise` App.css modifier was added then REMOVED once CDP showed the base
+  reveal already rises — net App.css change is nil; only HomePage.tsx changed.)
+  CDP-verified on 390x844: pill fades+rises 0/44→1/0 over ~600ms while lead/summary
+  hold at 0/44 until their delay, then follow — true sequential cascade. No
+  H-overflow, 0 errors (earlier mobile audit: iPhone SE/14/Pixel/iPad all clean).
+  tsc+eslint green (tests+build backgrounded). Files: HomePage.tsx. NOT pushed.
 - **Verify infra note:** if 9333/dev server are down, relaunch: `BROWSER=none
   npm start` + headless isolated Chrome (`chrome.exe --remote-debugging-port=9333
   --user-data-dir=<scratch> --no-first-run --headless=new`). Never 9222.

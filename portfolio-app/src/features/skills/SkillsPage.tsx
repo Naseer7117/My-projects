@@ -15,9 +15,13 @@ type SkillsPageProps = {
   data: SkillsContent;
   /** False when STACKED on long-scroll Home — see AboutPage. */
   beatEnabled?: boolean;
+  /** True only on the landing (Home) stack — gives the cert cards the
+   * holographic "award badge" treatment (iridescent sheen). Off on the
+   * standalone Skills page. */
+  holoBadges?: boolean;
 };
 
-const SkillsPage: React.FC<SkillsPageProps> = ({ data, beatEnabled = true }) => {
+const SkillsPage: React.FC<SkillsPageProps> = ({ data, beatEnabled = true, holoBadges = false }) => {
   // Context beat (§5): walk over and peek near the first capability card.
   useCompanionContextBeat('skills', '.skills-cluster-card', 'peeking', { expression: 'happy', ms: 2000 }, beatEnabled);
 
@@ -84,8 +88,17 @@ const SkillsPage: React.FC<SkillsPageProps> = ({ data, beatEnabled = true }) => 
       </h3>
       <div className="row g-4 skills-cert-grid">
         {data.certifications.map((cert) => (
-          <div className="col-md-4 col-sm-6" key={`${cert.issuer}-${cert.title}`} data-reveal>
-            <div className="card cert-card h-100" data-tilt="4">
+          <div className="col-md-4 col-sm-6" key={`${cert.issuer}-${cert.title}`} data-reveal={holoBadges ? 'scale' : undefined}>
+            <div className={`card cert-card h-100${holoBadges ? ' cert-card--holo' : ''}`} data-tilt={holoBadges ? '8' : '4'}>
+              {/* Holographic foil layers (landing only) — an iridescent sheen +
+                  a hover shimmer, adapted from the award-badge sample's look to
+                  plain CSS. aria-hidden: purely decorative. */}
+              {holoBadges ? (
+                <>
+                  <span className="cert-holo cert-holo--foil" aria-hidden="true" />
+                  <span className="cert-holo cert-holo--shine" aria-hidden="true" />
+                </>
+              ) : null}
               <div className="card-body">
                 <span className="cert-kind">{cert.kind}</span>
                 <h4 className="h6 cert-title">{cert.title}</h4>

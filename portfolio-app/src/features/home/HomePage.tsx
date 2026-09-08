@@ -154,7 +154,9 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
       <div className="container-xxl">
         <div className="row align-items-start gy-5 gx-lg-4 gx-xl-5">
           <div className="col-lg-7 col-xl-8">
-            <span className="pill-label" data-reveal>{data.role}</span>
+            <span className="pill-label" data-reveal style={{ '--rd': '80ms' } as React.CSSProperties}>
+              {data.role}
+            </span>
             <h1 className="display-5 fw-bold mt-3 hero-title">
               {['Hi,', 'I', 'am'].map((word, i) => (
                 <React.Fragment key={word}>
@@ -175,10 +177,16 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
                 </React.Fragment>
               ))}
             </h1>
-            <p className="lead text-accent mt-3" data-reveal>{data.tagline}</p>
-            <p className="text-secondary mt-3" data-reveal>{data.summary}</p>
-            <p className="text-secondary" data-reveal>{data.introduction}</p>
-            <div className="hero-cta-group mt-4" data-reveal>
+            <p className="lead text-accent mt-3" data-reveal style={{ '--rd': '520ms' } as React.CSSProperties}>
+              {data.tagline}
+            </p>
+            <p className="text-secondary mt-3" data-reveal style={{ '--rd': '640ms' } as React.CSSProperties}>
+              {data.summary}
+            </p>
+            <p className="text-secondary" data-reveal style={{ '--rd': '740ms' } as React.CSSProperties}>
+              {data.introduction}
+            </p>
+            <div className="hero-cta-group mt-4" data-reveal style={{ '--rd': '860ms' } as React.CSSProperties}>
               <div className="d-flex flex-wrap gap-3">
                 <button className="btn btn-primary btn-lg" type="button" onClick={() => onNavigate('projects')}>
                   View projects

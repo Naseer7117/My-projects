@@ -23,3 +23,18 @@ export function hasFinePointer(): boolean {
   }
   return window.matchMedia('(pointer: fine)').matches;
 }
+
+/**
+ * True on weak / low-power hardware (few CPU cores or little RAM). Used to dial
+ * DOWN the heavy intro effects — sparser constellation grid, DPR capped to 1 —
+ * so the site stays smooth on machines without a real GPU. Conservative: only
+ * flags clearly low-end devices; unknown hardware is treated as capable.
+ */
+export function isLowPowerDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const cores = (navigator as Navigator & { hardwareConcurrency?: number }).hardwareConcurrency;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (typeof cores === 'number' && cores > 0 && cores <= 4) return true;
+  if (typeof mem === 'number' && mem > 0 && mem <= 4) return true;
+  return false;
+}

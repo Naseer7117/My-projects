@@ -15,6 +15,7 @@
     "@types/react-dom": "^19.2.0",
     "bootstrap": "^5.3.8",
     "framer-motion": "^12.42.2",
+    "gsap": "^3.15.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-scripts": "5.0.1",
@@ -31,6 +32,12 @@
     "extends": [
       "react-app",
       "react-app/jest"
+    ]
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "[/\\\\]node_modules[/\\\\](?!gsap[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "^.+\\.module\\.(css|sass|scss)$"
     ]
   },
   "browserslist": {

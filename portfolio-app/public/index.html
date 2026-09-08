@@ -23,14 +23,14 @@
          priority, off the critical path) then flip to 'all' once loaded. The
          page's font-display:swap already avoids invisible text meanwhile. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
       media="print"
       onload="this.media='all'"
     />
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
         rel="stylesheet"
       />
     </noscript>
@@ -59,10 +59,16 @@
         } catch (e) {}
         if ('IntersectionObserver' in window) d.classList.add('is-ready');
         if (!reduce) d.classList.add('intro-active');
-        // Safety nets: reveal content and release the hero even if JS stalls.
-        setTimeout(function () {
+        // Safety net: force-reveal all content ONLY if the React bundle never
+        // boots (JS stalled). The app cancels this timer on mount (see App.tsx)
+        // via window.__revealFallbackTimer — otherwise a fixed timer would fire
+        // while the visitor is still in the pinned cinematic intro and
+        // permanently kill every scroll-reveal animation below the fold. Bumped
+        // to 8s so a slow-but-working boot never trips it before React cancels.
+        window.__revealFallbackTimer = setTimeout(function () {
           d.classList.add('reveal-fallback');
-        }, 4000);
+        }, 8000);
+        // Release the hero even if JS stalls (independent safety net).
         setTimeout(function () {
           d.classList.remove('intro-active');
         }, 6000);
