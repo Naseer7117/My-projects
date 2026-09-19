@@ -179,18 +179,10 @@ export type CompanionState = {
   y: MotionValue<number>;
   /** -1 (facing left) or 1 (facing right), derived from the x-spring's velocity. */
   facing: MotionValue<number>;
-  /** 0..1 wrapping phase of the current stride cycle, written every animation
-   * frame while walking — consumed by CompanionCharacter to drive the
-   * foot-plant-synced container bob (distance-synced, not CSS
-   * animation-duration synced). Exposed as a ref so reading it never
-   * triggers a React re-render (identical reasoning to `facing`). */
-  strideRef: React.RefObject<number>;
   /** Live walk-arc telemetry (progress / planned distance / direction) for
    * the renderer's visual hop arc — see WalkArc above. */
   walkArcRef: React.RefObject<WalkArc>;
-  /** Attach to the companion's root DOM node so the stride loop can write
-   * --stride-phase for any CSS that wants it, without needing a second
-   * read path. */
+  /** Attach to the companion's root DOM node. */
   rootRef: React.RefObject<HTMLDivElement | null>;
   /** Visible bottom-origin scale (perch fit-to-element shrink, 1 = full size).
    * A ref so the renderer reads it per-frame without re-rendering. */
@@ -272,7 +264,6 @@ export function useCompanionBehavior(): CompanionState {
     });
   }, [xVelocity, facing]);
 
-  const strideRef = useRef(0);
   const walkArcRef = useRef<WalkArc>({ progress: 0, plannedDistancePx: 0, dirX: 1, suppressArc: false });
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -534,8 +525,7 @@ export function useCompanionBehavior(): CompanionState {
         const curY = y.get();
         // (The old distance-accumulating stride phase / --stride-phase CSS var
         // is gone — every gait's footsteps are baked into its clip now, so
-        // nothing consumed the phase. strideRef stays in the return contract
-        // as a harmless hook for any future distance-synced effect.)
+        // nothing consumed the phase.)
 
         const walk = activeWalkRef.current;
         if (walk) {
@@ -1060,7 +1050,6 @@ export function useCompanionBehavior(): CompanionState {
       x,
       y,
       facing,
-      strideRef,
       walkArcRef,
       rootRef,
       perchScaleRef,

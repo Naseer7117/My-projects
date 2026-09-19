@@ -1236,6 +1236,369 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
   hold at 0/44 until their delay, then follow — true sequential cascade. No
   H-overflow, 0 errors (earlier mobile audit: iPhone SE/14/Pixel/iPad all clean).
   tsc+eslint green (tests+build backgrounded). Files: HomePage.tsx. NOT pushed.
+- **2026-08-20 (footer cursor ribbon-trails)** — Owner supplied a shadcn/Tailwind/
+  Next `renderCanvas` sample (springy neon ribbon-trails chasing the cursor);
+  wanted it as the footer background BEHIND the robot, both reacting to the same
+  cursor, nothing removed. New components/layout/FooterRibbons.tsx: kept the
+  physics (multi-node spring "lines" trailing the pointer, additive `lighter`
+  blend, quadratic-curve draw) but REWROTE the sample's module-global +
+  `@ts-ignore` + `getElementById("canvas")` + window-sized mess as a
+  self-contained component — all state in the effect, canvas sized to its PARENT
+  (the footer) via host rect, cursor read in the footer's LOCAL space (only
+  tracks while pointer is over the footer), DPR-capped, `setTransform`. Themed:
+  hue oscillates ±40° around `--accent`'s hue (not the sample's rainbow). Dropped
+  the Hero/Button/dicons/next deps. Gated: desktop + fine-pointer only,
+  reduced-motion → null, rAF pauses when footer off-screen (new
+  IntersectionObserver in Footer.tsx → `active` prop). Layer: `.footer-ribbons`
+  z-0 DOM-first (paints UNDER `.footer-robot` z-0), pointer-events:none + radial
+  edge mask; robot (z-0) / orbit (z-1) / credit (z-2) all untouched. CDP-verified:
+  canvas mounts 1425x460, a cursor sweep paints a glowing accent trail flowing to
+  the cursor (screenshot), robot STILL parallax-tracks (translateX -18→+17,
+  rotateY sign flips L/R), orbit+credit intact, 0 errors. Only the landing footer
+  gets it (normal footer unchanged). tsc+eslint green (tests+build backgrounded).
+  Files: FooterRibbons.tsx (new), Footer.tsx, App.css. NOT pushed.
+- **2026-08-20 (magnetize particles on nav tabs)** — Owner supplied a shadcn/
+  Tailwind/Next `MagnetizeButton` sample; wanted the magnet-particle hover on the
+  nav tabs (Home/About/Skills/Projects/Contact). New components/effects/
+  MagnetizeParticles.tsx: kept ONLY the particle behaviour (N accent dots
+  scattered at rest → sucked to centre on hover via `useAnimation` spring →
+  scatter back on leave); dropped the shadcn Button, lucide Magnet icon, "Hover
+  me" label, violet Tailwind classes, and the 4 new deps (framer already here).
+  Uses `m.span` (NOT motion.* — LazyMotion strict). It's a pointer-events:none
+  overlay rendered INSIDE each existing `.nav-link` (Navbar.tsx: added per-item
+  `hovered` state via onMouseEnter/Leave/Focus/Blur; wrapped label in
+  `.nav-link__label`; class `nav-link--magnetize`). CSS (App.css): particle layer
+  centred on the tab (`top/left:50%`), dots 5px accent + glow, `overflow:visible`
+  so they scatter past the tab, label z-1 above. Spread 54px, 10 dots/tab.
+  CDP-verified: 5 tabs × 10 = 50 dots, avg dist from centre 44px REST → 1px HOVER
+  → 44px LEAVE (magnet cycle works), 0 errors, nav click/active-underline/mobile
+  dropdown all intact. Reduced-motion → renders nothing. tsc+eslint green (tests+
+  build backgrounded). Files: MagnetizeParticles.tsx (new), Navbar.tsx, App.css.
+  NOT pushed.
+- **2026-08-23 (architecture audit + Phase 0 refactors)** — Ran a 39-agent
+  adversarially-verified audit (workflow) reverse-engineering the whole app; full
+  report at scratchpad/audit.md. Top verified findings: 3550-line global App.css
+  (465 selectors, no scoping) [CRITICAL scalability]; 1071-line useCompanionBehavior
+  god-hook [HIGH]; useTilt rect-read-per-frame thrash [HIGH]; SocialBar/SocialOrbit
+  byte-identical label+icon dicts [HIGH dup]; useCompanionIdlePool load-bearing
+  memoization [HIGH]. The audit's adversarial pass CAUGHT several proposed fixes
+  that would change behavior and flagged them UNSAFE (do NOT apply): `--companion-size`
+  CSS var (JS-set, not breakpoint-scoped), scrollHeight caching (Home height
+  changes w/o resize), lineWidth hoist in useCursorFx (toggles 0.6/0.7),
+  FooterRobot rect-cache (host is spring-animated), "free" App.css file-move
+  (equal-specificity source-order flips), Navbar 768 (Bootstrap token not mascot's).
+  APPLIED Phase 0 only (pure refactors, zero behavior change, all CDP-verified):
+  (1) useTilt caches rect on pointerenter (mirrors useMagnetic) — kills per-frame
+  layout thrash; CDP: --tx/--ty still compute on hover. (2) useScrollProgress
+  caches `.main-navbar` querySelector once (left scrollHeight per-frame). (3)
+  useCursorFx pair-link loop: squared-distance guard, sqrt only inside branch
+  (did NOT hoist lineWidth); CDP: cursor canvas still draws. (4) deleted dead
+  strideRef across useCompanionBehavior/App.tsx/CompanionCharacter (+ its lying
+  "written every frame" comments; --stride-phase CSS var was used nowhere). (5)
+  deleted reportWebVitals (dead — called with no cb) + reportWebVitals.ts +
+  web-vitals dep. (6) fixed stale COMPANION_IDLE_SUBS comment (shuffle bag not
+  uniform), added SCAN_ROUTES to the routes.tsx add-a-route checklist. (7)
+  FooterRobot 767 literal → COMPANION_MOBILE_BREAKPOINT. Gates: tsc+eslint+tests
+  2/2+build all green. NOT DONE (Phase 1/2, needs owner go-ahead): social icon
+  shared module, canRunHeavyDesktopFx helper, hex→token, god-hook split,
+  App.css split. Files: useTilt.ts, useScrollProgress.ts, useCursorFx.ts,
+  useCompanionBehavior.ts, App.tsx, CompanionCharacter.tsx, index.tsx,
+  package.json, constants.ts, routes.tsx, FooterRobot.tsx, reportWebVitals.ts
+  (deleted). NOT pushed.
+- **2026-08-24 (perf audit + Phase A/B optimizations)** — Ran a 39-agent
+  adversarially-verified PERF audit (workflow; synth agent hit session limit so
+  the report was hand-synthesized from the journal → scratchpad/perf-audit.md).
+  Measured baseline first (CDP): Home idle ~40 FPS; LEAK = over 15 route navs JS
+  heap 21.8→28.6MB (+31%) + running animations 138→149 (DOM stable → JS-side).
+  Adversarial pass KILLED false leads ("5 pages mount twice" — App renders one
+  route; "CinematicIntro GSAP timeline leaks" — GSAP 3.15 .kill() removes it) and
+  flagged UNSAFE fixes (RGB-key restructure, floating-paths transform swap,
+  particle-count cut, IntersectionObserver on the fixed particle canvas — all
+  change visuals; excluded). APPLIED Phase A (7 pure perf refactors, zero visual
+  change, all CDP-verified) + Phase B (2 bundle gates):
+  A1 useScrollReveal: animateCount now threads a `live` Set of rAF ids, cancelled
+     in setupReveal cleanup — ROOT CAUSE of the leak (orphaned self-rescheduling
+     count-up on mid-count route change).
+  A2 FooterRibbons: cache host w/h on resize, drop per-frame getBoundingClientRect
+     in render() (kept onMove's — reads scroll-dependent left/top).
+  A3 ConstellationGrid: edge pass sets strokeStyle once + varies globalAlpha (no
+     rgba string per edge); ctx.font hoisted out of the node loop. Pixel-identical.
+  A4 CompanionCharacter perch rAF: skip node.style.transform write when unchanged.
+  A5 React.memo(MagnetizeParticles) — nav hover no longer re-renders all 50 dots.
+  A6 dropped stale will-change on .aurora + .hero-ticker__inner (their running
+     transforms already promote the layer; left .footer-robot's).
+  A7 useCompanionCursorEncounter: ref-wrap state/isIdleNow/requestWalk → effect
+     deps [enabled,x,y], stops per-dispatch/per-render listener re-subscription.
+  B1 routes.tsx: gate the CinematicIntro RENDER behind `wantsCinematic`
+     (desktop+fine+motion+>900, module-load const) so React.lazy never fetches the
+     ~2MB GSAP chunk for mobile/reduced-motion. CDP: fresh mobile Home loads ZERO
+     chunks, no .cinematic-intro. (Behavior identical — those users saw null before.)
+  B2 FooterRobot: new `inView` prop + `seen` latch; Footer passes footerInView (its
+     existing IO, 150px rootMargin). ~4MB Spline WebGL now loads on footer-reach,
+     not Home mount; latch prevents GL churn on scroll in/out. CDP: robot absent
+     before footer scroll, present after.
+  RESULT (CDP): LEAK FIXED — 15 navs heap 13.8→13.5MB (flat), animations 138→138
+  (no accumulation). tilt/constellation/ribbons/robot/magnetize all verified
+  visually identical; 0 errors desktop+mobile; no H-overflow. Gates: tsc+eslint+
+  tests 2/2+build green. NOT DONE (Phase C, needs go-ahead): particle spatial-hash,
+  FSM walk-gating, CompanionContext handoff→MotionValue. Files: useScrollReveal.ts,
+  FooterRibbons.tsx, ConstellationGrid.tsx, CompanionCharacter.tsx,
+  MagnetizeParticles.tsx, App.css, useCompanionCursorEncounter.ts, routes.tsx,
+  FooterRobot.tsx, Footer.tsx. NOT pushed.
+- **2026-08-24 (clean-architecture — SAFE structural moves)** — Owner asked for a
+  clean-architecture rebuild (separate concerns, reduce coupling, scale). Rather
+  than re-run the (already-done) architecture audit, applied its verified SAFE
+  subset and documented the risky rest as plan. APPLIED (behavior-identical, CDP-
+  verified): (1) `lib/env.canRunHeavyDesktopFx(minWidth=900)` — centralises the
+  `!reducedMotion && finePointer && innerWidth>minWidth` composite that was
+  hand-written in CinematicIntro, FooterRibbons, and routes.tsx's wantsCinematic;
+  all three now call it (boolean-identical; FooterRobot keeps its own <=BREAKPOINT
+  + Save-Data check). (2) New `components/layout/socialIcons.tsx` — shared
+  SOCIAL_LABELS + SOCIAL_ICONS (the byte-identical dicts SocialBar & SocialOrbit
+  each carried); both now import it; SocialOrbit keeps its orbit-only BADGE_ICONS/
+  DECORATIVE. CDP-verified: SocialBar 4 glyphs render, SocialOrbit 18 elements,
+  cinematic+ribbons still gate correctly, 0 errors. DELIBERATELY SKIPPED (ponytail
+  — superficial rhyme, not real dup): shared canvas-util and color-parser
+  (ConstellationGrid vs FooterRibbons differ — clamps, and rgb-triplet vs hue
+  outputs; forcing one module = indirection for ~5 lines, risks pixel-identical).
+  DOCUMENTED-BUT-DEFERRED (behavior-risky, no test net — need explicit go-ahead):
+  split useCompanionBehavior into hooks/interactions/companion/ (Math.random
+  order + effect deps + load-bearing memo), split App.css per-feature (equal-
+  specificity source-order flips). Gates: tsc+eslint+tests+build green. Files:
+  lib/env.ts, socialIcons.tsx (new), SocialBar.tsx, SocialOrbit.tsx,
+  CinematicIntro.tsx, FooterRibbons.tsx, routes.tsx. NOT pushed.
+- **2026-08-24 (nav buttons → neon outline pills)** — Owner: give the nav buttons
+  (Home/About/Skills/Projects/Contact) good styling; chose "neon outline pills".
+  Restyled `.main-navbar__links .nav-link` (App.css) from minimal text+growing-
+  underline into rounded chips: 1px border-strong outline always on, radius 999px,
+  faint translucent fill; hover → accent border + neon box-shadow glow + 1px lift;
+  active → bright accent ring + inner glow + `--gradient` clipped text on
+  `.nav-link__label`. Repurposed the old `::after` underline as an inset radial
+  glow layer (z-index -1, isolate); deleted the stale `::after{width:100%}` rule;
+  bumped `.main-navbar__links` gap 0.25→0.5rem. Magnetize particles + label
+  z-layering preserved. CDP-verified: 5 pills, active border rgb(139,123,255)
+  radius 999px, screenshots show active gradient-text pill + hover glow + idle
+  outlines + particles converging, app mounts, 0 errors. Gates: tsc+eslint+tests+
+  build green. Files: App.css only. NOT pushed.
+- **2026-08-25 (mobile "cooler" — 4 touch-friendly features)** — Owner: mobile
+  looks plain vs desktop (all the cursor effects are desktop-gated); add cool
+  features that work on touch. Added 4 (none need a cursor; all perf-gated):
+  (1) MobileAmbient.tsx (new) — a cursor-FREE constellation mesh as the mobile bg
+  (mounted in BackgroundFx). Sparse self-drifting nodes (sine paths, no O(n²)
+  shockwave), near-neighbour links via globalAlpha, node count scaled to area
+  (sparser on isLowPowerDevice), DPR-capped, visibilitychange-paused. A TAP fires
+  an expanding ripple that pushes nearby nodes (touch equiv of desktop cursor).
+  Gates: null on desktop (finePointer+>900) / reduced-motion. CSS `.mobile-ambient`
+  fixed z-3. (2) Mobile FloatingPaths — mounted the existing (pure-CSS, no-cursor)
+  FloatingPaths in BackgroundFx behind a `.mobile-paths` fixed wrapper, gated by
+  isMobileViewport() (!finePointer || <=900). (3) Tap/press micro-interactions —
+  App.css `@media (hover:none) and (pointer:coarse)`: cards/links/buttons/nav
+  scale-down + accent-glow on `:active` (spring ease); data-tilt cards use
+  `perspective(1100px) scale(.97)!important` to beat their base transform; a
+  reduced-motion sub-block drops the scale. (4) useDeviceTilt.ts (new, wired into
+  useInteractions) — reads gyroscope (DeviceOrientationEvent), maps gamma/(beta-45)
+  over ±30° to `--tilt-x/--tilt-y` (-1..1), rAF-throttled; iOS 13+ permission
+  requested on first touchend; the `.aurora` transform now adds `--tilt-x/y * 26px`
+  so bg layers drift as you tilt (0 on desktop → reduces to scroll-only). CDP-
+  verified: ambient canvas draws + tap ripple visible (screenshot), paths dash
+  animates, mapping math correct (gamma20/beta65→0.667/0.667; neutral 0,0), aurora
+  responds to tilt var (-26px), FRESH desktop context shows NO mobile layers +
+  cinematic intact, no H-overflow, 0 errors. CAVEAT: tap-press `:active` and the
+  gyroscope can't be fully exercised in headless Chrome (CDP doesn't map touch→
+  :active pseudo, no real sensor) — both use the standard native mechanisms that
+  work on real iOS/Android; every verifiable sub-part checks out. Gates: tsc+
+  eslint+tests 2/2+build green. Files: MobileAmbient.tsx (new), useDeviceTilt.ts
+  (new), BackgroundFx.tsx, useInteractions.ts, App.css. NOT pushed.
+- **2026-08-25 (footer gradient bg + corner cat)** — Owner: empty space either
+  side of the footer robot; add an animated gradient bg + a cat sitting in the
+  right corner looking up. (1) AnimatedGradientBackground.tsx (new) — adapted a
+  shadcn/Tailwind/Next sample: kept the rAF "breathing" (radius eases ±range each
+  frame, writes `background` on a ref), dropped Tailwind + the Lottie demo dep,
+  motion→m, palette = SITE theme (transparent→violet→cyan→pink, anchored
+  `at 50% 100%` so it glows UP from the footer bottom + fills the sides).
+  Reduced-motion → static gradient (no rAF). Mounted as the DEEPEST landing-footer
+  layer (z-0, DOM-first, under ribbons/robot). (2) FooterCat.tsx (new) — an <img>
+  in the bottom-right, z-1, pointer-events:none, gentle idle float (footer-cat-
+  float, off on reduced-motion), theme drop-shadow glow; onError hides it if the
+  asset is missing. Owner will supply the real art — a PLACEHOLDER sitting-cat-
+  looking-up SVG ships at public/assets/footer-cat.svg; replace that file (keep
+  name) or repoint CAT_SRC. CSS: `.animated-gradient-bg(__layer)`, `.footer-cat(__img)`
+  + mobile size tweak. CDP-verified: gradient breathing (radius 126%→ changing),
+  cat loaded (naturalWidth>0) at 55px from right edge / footer bottom, robot+orbit
+  intact, 0 errors. Gates: tsc+eslint+tests 2/2+build green. Files:
+  AnimatedGradientBackground.tsx (new), FooterCat.tsx (new), Footer.tsx, App.css,
+  public/assets/footer-cat.svg (new placeholder). NOT pushed.
+- **2026-08-25 (footer cat — pink, from behind, animated tail+ears)** — Owner gave
+  5 reference frames of a PINK cat sitting from BEHIND (white belly stripe, pointed
+  ears, curling tail that swishes). Rebuilt FooterCat.tsx from an <img>+placeholder
+  into INLINE SVG so CSS can animate the tail + ears as their own groups. Body =
+  pink gradient pear shape from behind, white centre stripe, 2 ears, small
+  turned-head detail, tail curling to the right. Animations (App.css): `.cat-tail`
+  swishes (rotate -4→9deg, transform-box:fill-box origin at base, 3.2s);
+  `.cat-ear--l/--r` twitch on offset 5s cycles; reduced-motion holds all still.
+  `.footer-cat__svg` overflow:visible so the tail swings past the box. Deleted the
+  old public/assets/footer-cat.svg placeholder (cat is inline now). CDP-verified:
+  svg + tail present, tail transform CHANGES across frames (swishing), cat at right
+  edge/footer bottom, NO overlap with orbit or credit, 0 errors; screenshot shows
+  the pink from-behind cat in the corner next to the mascot over the gradient.
+  Gates: tsc+eslint+tests 2/2+build green. Files: FooterCat.tsx, App.css;
+  deleted public/assets/footer-cat.svg. NOT pushed.
+- **2026-08-25 (cat corrected from reference VIDEO + corner rainbow)** — Owner gave
+  IMG_6786.MP4 (a 21st.dev AnimatedGradientBackground preview) and wanted: the
+  gradient NOT full-footer but a small RAINBOW behind the cat in the bottom-RIGHT
+  corner only, cat ON TOP looking up, tail wagging like the video. Read the video
+  via ffmpeg (WinGet Gyan.FFmpeg) — extracted + cropped frames: pink cat from
+  behind, white belly stripe + tuft, 2 ears, head turned up, long tail that WAGS
+  between a down-sweep and an up-curl; gradient = dark core→blue→orange arc rising
+  from bottom. Changes: (1) removed the full-footer AnimatedGradientBackground
+  from Footer.tsx and DELETED the component + its CSS (unused). (2) FooterCat.tsx:
+  added `.footer-cat__rainbow` span — a corner-scoped radial gradient (blue→orange
+  →pink, `circle at 50% 100%`, masked, breathing) behind the cat; reshaped the SVG
+  cat to match the video (slimmer sit, up-turned head, stripe+tuft). (3) tail-wag
+  animation upgraded to rotate -8→16deg + scale (reads as the furl/unfurl), 2.4s;
+  ears still twitch; reduced-motion stops all incl. rainbow. CDP-verified: cat +
+  rainbow present, full-footer gradient GONE, tail wagging (transform changes),
+  NO overlap with orbit/credit, 0 errors; screenshot shows the pink cat on the
+  blue→orange corner glow. Gates green. NOTE: ffmpeg frames in scratch/catframes.
+  Files: FooterCat.tsx, Footer.tsx, App.css; deleted AnimatedGradientBackground.tsx.
+  NOT pushed.
+- **2026-08-25 (footer: U-glow, cat removed)** — Owner: remove the cat (not up to
+  the mark); change the corner gradient to a U-shaped curve spread across the
+  WHOLE footer bottom, breathing. Deleted FooterCat.tsx + all its CSS. New
+  FooterGlow.tsx: a `.footer-glow__layer` whose JS rAF paints
+  `radial-gradient(W% H% at 50% 118%, blue→orange→pink→transparent)` — a WIDE
+  (~84-96%) + SHORT (~57-67%) ellipse anchored below the footer bottom-centre, so
+  the coloured band arcs up at the L/R edges and dips centre = a U across the full
+  width; the JS breathes W/H via sin (reduced-motion → static U). z-0 deepest
+  layer (under ribbons/robot), 8px blur, click-through. Wired into Footer.tsx
+  landing variant. CDP-verified: glow present + breathing (radius 84%→ changing),
+  cat GONE, screenshot shows orange-centre→violet-sides U across the whole footer
+  floor, 0 errors. Gates green. Files: FooterGlow.tsx (new), Footer.tsx, App.css;
+  deleted FooterCat.tsx. NOT pushed.
+- **2026-08-25 (more greeting languages)** — Owner: add more languages to the top
+  HelloGreeting cycle. Expanded 11 → 23 greetings (HelloGreeting.tsx). Added: German/
+  Dutch hallo, Turkish merhaba, Vietnamese xin chào (Latin/handwriting); Tamil
+  வணக்கம், Kannada ನಮಸ್ಕಾರ, Malayalam നമസ്കാരം, Bengali নমস্কার, Gujarati નમસ્તે
+  (new Indic font consts — all fall back to 'Nirmala UI' which is bundled on
+  Windows); Russian Привет, Greek Γεια, Thai สวัสดี, Hebrew שלום (new consts, Segoe
+  UI / Noto). Interleaved by script group. GOTCHA: the SVG box is 600 units wide —
+  CDP measured Tamil/Kannada/Malayalam OVERFLOWING at their first sizes (684/564/
+  688), so their `size` was cut to 74/78/72; re-measured ALL new words at their
+  configured size+font → every one fits (201–422 < 570) and renders real glyphs
+  (no tofu → fonts resolve). tsc+eslint green; tests/build running. Files:
+  HelloGreeting.tsx only. NOT pushed.
+- **2026-08-25 (light/dark theme toggle)** — Owner: add a moon↔sun SLIDING theme
+  toggle left of the navbar brand; dark = default (current look), add a light theme
+  matching the site. Because the WHOLE site is driven by :root design tokens, the
+  light theme is a clean `:root[data-theme='light']` token-override block (App.css)
+  — off-white surfaces + deep-navy text, accents deepened (violet #6d5cff, cyan
+  #0891b2, pink #db2777) for light-ground contrast; every rule re-themes via the
+  vars. Dark :root is UNTOUCHED (default). New: useTheme.ts (localStorage 'theme',
+  sets/removes data-theme on <html>, default dark), ThemeToggle.tsx (a11y
+  role=switch, inline moon+sun SVGs in a pill, a sliding knob), wired App.tsx →
+  Navbar (left of NavBrand). Boot script in index.html applies saved light BEFORE
+  paint (no flash). CSS: `.theme-toggle` pill + `.theme-toggle__knob` slides
+  translateX 0→28px and morphs blue-moon→gold-sun (cubic-bezier bounce);
+  reduced-motion drops the slide. Spot fixes for hardcoded-light content on light:
+  `.section-title` color→var(--text), navbar bg→white-tint (base + is-scrolled);
+  the CINEMATIC white-gradient headings kept (they sit on the laptop's own dark
+  screen). CDP-verified: default=dark (no attr, knob left/moon), toggle→light
+  (data-theme=light, knob right/gold-sun, body bg rgb(238,241,248), text
+  rgb(23,26,46), section-title rgb(23,26,46), navbar rgba(255,255,255,.6)),
+  persisted to localStorage, applied pre-paint on reload, 0 errors; screenshots
+  show a clean pastel light theme + both toggle states. Dark theme visually
+  IDENTICAL to before. Gates green. Files: useTheme.ts (new), ThemeToggle.tsx
+  (new), App.tsx, Navbar.tsx, App.css, public/index.html. NOT pushed.
+- **2026-08-25 (light-mode contrast pass)** — Owner: in light mode some text/icons/
+  things weren't visible. Root cause: many surfaces HARDCODE dark colours
+  (rgba(5,6,13,...)) or faint WHITE overlays (rgba(255,255,255,0.0x)) that don't
+  adapt via tokens. Found them by CDP-screenshotting all light pages + grepping the
+  CSS. Biggest offender: the NORMAL footer (`.site-footer` bg rgba(5,6,13,.6)) —
+  stayed a dark band on light with dim social icons. Added targeted
+  `:root[data-theme='light']` overrides (App.css): `.site-footer` → white glass
+  (icons are token-coloured so they now read); `.soft-card`/`.card`/`.hero-quick-
+  card`/`[data-tilt]` → clean light glass (were mixing a dark rgba(16,20,38) stop);
+  `--text-faint` nudged darker. (`.section-title`, navbar base+scrolled already
+  fixed in the prior toggle change.) Cinematic laptop-screen whites left as-is
+  (own dark stage). CDP-verified: footer bg now rgba(255,255,255,.65), social
+  icons visible, headings dark, navbar light, cards light — screenshots of all
+  pages clean; dark theme untouched. Gates: tsc+eslint green; tests/build running.
+  Files: App.css only. NOT pushed.
+- **2026-08-28 (full desktop landing → MOBILE)** — Owner (inspired by meta.com AI-
+  glasses mobile scroll) wants the SAME landing on phones: dot-smash constellation,
+  hello greeting, cinematic laptop scroll, floating paths, footer robot — adapted
+  to stay smooth on low-end. Approach: new `canRunCinematic()` in lib/env (=
+  `!reducedMotion`, drops the fine-pointer + >900px reqs of canRunHeavyDesktopFx)
+  → CinematicIntro `enabled` gate + routes.tsx `wantsCinematic` now use it, so the
+  whole cinematic (laptop, constellation, greeting, floating paths, RGB keyboard)
+  runs on mobile. The mouse-sheen effect no-ops on touch; GSAP ScrollTrigger
+  scrubs on touch scroll; constellation still self-tunes via isLowPowerDevice.
+  MOBILE laptop layout fix (App.css @≤767px): laptop 70vw→92vw, screen `.cine-scr`
+  → single column, hide photo, clamp tagline to 3 lines, hide summary, smaller
+  name/btns (desktop 2-col screen was cramped/clipped on a phone). FOOTER ROBOT:
+  shouldLoadRobot() dropped the width/fine-pointer gate, added isLowPowerDevice()
+  guard (keeps Save-Data + reduced-motion) → loads on CAPABLE phones, still SKIPS
+  on ≤4-core/RAM phones so the ~4MB WebGL never hits the weakest devices; restored
+  mobile landing-footer min-height 0→340px for the robot's room. LIGHT-THEME
+  cinematic fix: `.cinematic-intro` bg hardcoded dark #05060d (was var(--bg)) so
+  it stays a dark cinematic stage in light mode; `:root[data-theme=light]
+  .cinematic-intro` re-pins the DARK text/accent tokens locally so the headline/
+  kicker stay bright on the dark stage. CDP-verified on low-end-emulated 390x844:
+  cinematic mounts + laptop shows readable single-col screen (stats grid + RGB kbd)
+  + no H-overflow + 0 errors; robot loads on 8-core mobile / skips on 4-core;
+  light-theme cinematic headline bright on dark stage; FULL SWEEP (5 pages ×
+  desktop/mobile × dark/light = 20) all clean. Spline robot needs its CDN (fails
+  in headless sandbox but ErrorBoundary catches → no crash; loads on real device).
+  Gates: tsc+eslint+tests 2/2+build green. Files: lib/env.ts, routes.tsx,
+  CinematicIntro.tsx, FooterRobot.tsx, App.css. NOT pushed.
+- **2026-08-31 (mobile cinematic: greeting + hero photo fixes, on REAL emulator)** —
+  Owner reported the hello-greeting and hero photo not showing on the mobile
+  landing. Debugged DIRECTLY on the owner's running Android emulator (adb + adb
+  reverse tcp:3000 + adb forward to Chrome's chrome_devtools_remote → CDP on
+  ws://localhost:9222). Two root causes found+fixed: (1) GREETING was FROZEN — at
+  scroll 0 the `.cinematic-intro` wrongly had `.is-offscreen` (my perf-freeze
+  class → `animation-play-state:paused` on all descendants), because the
+  IntersectionObserver on the pinned intro mis-reports during the GSAP pin-spacer
+  distortion on mobile. FIX (CinematicIntro.tsx): replaced the IO with a
+  SCROLL-POSITION check (`inView = scrollY < innerHeight*2.4`, rAF-throttled) which
+  the pin can't fool. CDP-verified: greeting stroke now animates (offset 1600→0,
+  fill fades in), नमस्ते visible on emulator; desktop freeze-on-scroll-past STILL
+  works (is-offscreen false at top / true scrolled-past). (2) HERO PHOTO was
+  `display:none` on mobile (my earlier over-aggressive laptop-screen simplify).
+  FIX (App.css @≤767px): show `.cine-scr__media` as a 64px circular avatar
+  (border-radius:50%) above the name in the single-col screen. CDP-verified on
+  emulator: photo display:flex, loaded, radius 50%, on-screen when laptop open.
+  Also bumped mobile greeting size (min(72vw,340px)) + position (top:24vh) so it's
+  clearly visible not lost in the gap. Gates: tsc+eslint+tests 2/2+build green.
+  Emulator debug note: `adb forward tcp:9222 localabstract:chrome_devtools_remote`
+  gives CDP to the device's Chrome; screencap via `adb shell screencap -p /sdcard/
+  x.png && adb pull` (set MSYS_NO_PATHCONV=1 or Git Bash mangles /sdcard paths;
+  exec-out prepends a "Multiple displays" warning that corrupts the PNG — use the
+  device-file route). Files: CinematicIntro.tsx, App.css. NOT pushed.
+- **2026-08-31 (mobile smoothness: low-power tiering)** — Owner wanted smooth
+  rendering on ALL mobile sizes/types. Multi-size CDP sweep (280→834px, 12 devices)
+  = clean everywhere (no H-overflow, greeting/laptop/photo fit, 0 errors). BUT
+  measured FPS on the owner's real Android emulator (4-core, SOFTWARE GPU, via CDP
+  over `adb forward ...chrome_devtools_remote`) = only 3-7fps for the full
+  cinematic — janky. Isolation showed the per-frame killers (constellation rAF +
+  GSAP scrub + 60 hue-rotate keys); even sparsened, a 4-core software-GPU device
+  can't run it. (Note: blank page hit 53fps, so the device CAN render; and idle-
+  rAF FPS on this emulator proved unreliable to measure — real 4-core phones WITH
+  a hardware GPU may fare better, but can't guarantee.) DECISION (owner-approved):
+  TIER by device. `canRunCinematic()` now also `&& !isLowPowerDevice()` → capable
+  phones (≥6 cores) get the full cinematic; low-power (≤4 cores/RAM, incl. the
+  emulator) get the lightweight mobile hero (smooth). To keep the greeting on the
+  lite path: mounted `<HelloGreeting>` in HomePage.tsx hero as `.hero-hello-greeting`
+  (CSS: display:none desktop, flex ≤767px, left-aligned above the role pill).
+  MobileAmbient.tsx now `if (isLowPowerDevice()) return` (its sparse canvas rAF also
+  tanked FPS on the emulator — aurora+CSS gradients keep atmosphere). Reverted the
+  interim ConstellationGrid low-power gate (redundant now the whole cinematic is
+  gated). CDP-verified FRESH 4-core context: cinematic FALSE, greeting shows on
+  hero, mobile-ambient canvas idle (rAF gated), no overflow; FRESH 8-core: cinematic
+  TRUE (full experience). (8-core-then-4-core in one context stays 8 = module-load
+  artifact, not a bug — real devices load fresh.) Gates: tsc+eslint+tests+build
+  green. Files: lib/env.ts, HomePage.tsx, MobileAmbient.tsx, ConstellationGrid.tsx,
+  App.css. NOT pushed.
 - **Verify infra note:** if 9333/dev server are down, relaunch: `BROWSER=none
   npm start` + headless isolated Chrome (`chrome.exe --remote-debugging-port=9333
   --user-data-dir=<scratch> --no-first-run --headless=new`). Never 9222.

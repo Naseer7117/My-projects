@@ -1,7 +1,7 @@
 import React from 'react';
 import { m, useSpring, useTransform } from 'framer-motion';
 import SplineScene from 'components/effects/SplineScene';
-import { prefersReducedMotion, hasFinePointer } from 'lib/env';
+import { prefersReducedMotion, isLowPowerDevice } from 'lib/env';
 
 /*
  * FooterRobot — the Spline 3D robot BLENDED into the footer (no card, no text,
@@ -23,20 +23,37 @@ const SPLINE_SCENE = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splineco
 const SHIFT_PX = 22; // max horizontal/vertical drift toward the cursor
 const TILT_DEG = 6; // max tilt toward the cursor
 
-/** Whether to load the heavy WebGL robot right now (desktop, fine pointer, not
- * reduced-motion, not Save-Data). */
+/** Whether to load the heavy WebGL robot right now. Now runs on MOBILE too (the
+ * owner wants the same landing on phones) — but STAYS SAFE: skipped under
+ * reduced-motion, Save-Data, or on genuinely low-power devices (≤4 cores/RAM),
+ * so the ~4MB WebGL never loads on the weakest phones where it would stutter. On
+ * touch the mouse-parallax simply no-ops; the rigged scene still displays. */
 const shouldLoadRobot = (): boolean => {
   if (typeof window === 'undefined') return false;
   if (prefersReducedMotion()) return false;
-  if (window.innerWidth <= 767 || !hasFinePointer()) return false; // no heavy WebGL on phones
+  if (isLowPowerDevice()) return false; // no heavy WebGL on weak phones/PCs
   const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   return !conn?.saveData;
 };
 
-const FooterRobot: React.FC = () => {
+type FooterRobotProps = {
+  /** True once the footer has scrolled into view. Gates the ~4MB WebGL load so
+   * it only happens when the visitor actually reaches the footer, not on Home
+   * mount. */
+  inView?: boolean;
+};
+
+const FooterRobot: React.FC<FooterRobotProps> = ({ inView = true }) => {
   const hostRef = React.useRef<HTMLDivElement>(null);
   const reduced = prefersReducedMotion();
   const [heavy, setHeavy] = React.useState(shouldLoadRobot);
+  // Latch: once the footer has been seen, keep the robot mounted. Prevents the
+  // WebGL context from being torn down + rebuilt as the footer scrolls in and
+  // out of view (that churn was a memory-leak source).
+  const [seen, setSeen] = React.useState(false);
+  React.useEffect(() => {
+    if (inView) setSeen(true);
+  }, [inView]);
 
   // Re-evaluate on resize so resizing DESKTOP→phone width unmounts the WebGL
   // canvas (and phone→desktop can bring it in). Debounced with rAF.
@@ -75,7 +92,7 @@ const FooterRobot: React.FC = () => {
     return () => window.removeEventListener('mousemove', onMove);
   }, [heavy, reduced, nx, ny]);
 
-  if (!heavy) return null;
+  if (!heavy || !seen) return null; // wait until the footer is reached before loading WebGL
 
   return (
     <m.div

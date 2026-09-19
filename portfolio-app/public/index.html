@@ -53,6 +53,11 @@
       // safety timers so content always appears even if the bundle fails.
       (function () {
         var d = document.documentElement;
+        // Apply the saved theme BEFORE paint so there's no flash. Dark is the
+        // default (the site's original look); only 'light' is stamped.
+        try {
+          if (localStorage.getItem('theme') === 'light') d.setAttribute('data-theme', 'light');
+        } catch (e) {}
         var reduce = false;
         try {
           reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

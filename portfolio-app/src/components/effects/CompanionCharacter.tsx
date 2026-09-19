@@ -32,7 +32,7 @@ import {
  * layer owns exactly ONE motion concern:
  *
  *   .companion            m.div — x/y position springs (FSM-owned), facing
- *                          classes, --stride-phase target (rootRef)
+ *                          classes (rootRef)
  *     .companion__stage   m.div — pseudo-3D cursor tilt (rotateX/rotateY
  *                          springs + perspective): the mascot subtly "looks
  *                          toward" a nearby pointer
@@ -230,16 +230,10 @@ type CompanionCharacterProps = {
   y: MotionValue<number>;
   /** -1 = facing left, 1 = facing right (FSM velocity-derived). */
   facing: MotionValue<number>;
-  /** 0..1 wrapping stride phase, written every frame by useCompanionBehavior's
-   * distance-tracking loop WHILE behavior === 'walking'. No longer consumed
-   * here — every gait's footsteps are baked into its clip now — but kept in
-   * the contract as the hook for any future distance-synced effect. */
-  strideRef: React.RefObject<number>;
   /** Live walk telemetry (progress 0..1 / planned px / direction) from the
    * same FSM loop — drives the purely visual hop arc. */
   walkArcRef: React.RefObject<WalkArc>;
-  /** Forwarded to the root .companion div so useCompanionBehavior's loop can
-   * write the --stride-phase custom property there each frame. */
+  /** Forwarded to the root .companion div (position/facing host). */
   rootRef: React.RefObject<HTMLDivElement | null>;
   /** Visible bottom-origin scale (perch fit-to-element shrink, 1 = full). */
   perchScaleRef: React.RefObject<number>;
@@ -343,11 +337,16 @@ const CompanionCharacter: React.FC<CompanionCharacterProps> = ({
     let rafId = 0;
     let running = false;
     let current = perchScaleRef.current ?? 1;
+    let lastWritten = ''; // skip redundant DOM writes once the scale settles
     const tick = () => {
       const target = perchScaleRef.current ?? 1;
       current += (target - current) * 0.18; // critically-damped-ish ease
       if (Math.abs(target - current) < 0.002) current = target;
-      node.style.transform = `scale(${current.toFixed(3)})`;
+      const next = `scale(${current.toFixed(3)})`;
+      if (next !== lastWritten) {
+        node.style.transform = next;
+        lastWritten = next;
+      }
       if (running) rafId = requestAnimationFrame(tick);
     };
     const start = () => {

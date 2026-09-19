@@ -9,8 +9,12 @@ import {
   REVEAL_ROOT_MARGIN,
 } from '../../lib/constants';
 
-/** Animate a [data-count] element from 0 up to its target when it reveals. */
-function animateCount(el: HTMLElement): void {
+/** Animate a [data-count] element from 0 up to its target when it reveals.
+ * `live` tracks the in-flight rAF id so setupReveal's cleanup can cancel a
+ * count-up that's still running when the route unmounts — otherwise the
+ * self-rescheduling step() closure is orphaned (retaining el/target and leaking
+ * across navigations). Finished counters need no cleanup (they already stopped). */
+function animateCount(el: HTMLElement, live: Set<number>): void {
   const target = Number(el.dataset.count || '0');
   const suffix = el.dataset.suffix || '';
   if (prefersReducedMotion()) {
@@ -18,13 +22,19 @@ function animateCount(el: HTMLElement): void {
     return;
   }
   let start: number | null = null;
+  let raf = 0;
   const step = (ts: number) => {
+    live.delete(raf);
     if (start === null) start = ts;
     const p = Math.min(1, (ts - start) / COUNT_DURATION_MS);
     el.textContent = `${Math.round(easeOutQuart(p) * target)}${suffix}`;
-    if (p < 1) requestAnimationFrame(step);
+    if (p < 1) {
+      raf = requestAnimationFrame(step);
+      live.add(raf);
+    }
   };
-  requestAnimationFrame(step);
+  raf = requestAnimationFrame(step);
+  live.add(raf);
 }
 
 /**
@@ -33,6 +43,7 @@ function animateCount(el: HTMLElement): void {
  * the --rd custom property so grids cascade. Returns a cleanup.
  */
 function setupReveal(): () => void {
+  const live = new Set<number>(); // in-flight count-up rAF ids, cancelled on cleanup
   const targets = Array.from(
     document.querySelectorAll<HTMLElement>('[data-reveal]')
   ).filter((el) => !el.classList.contains('is-in'));
@@ -50,14 +61,17 @@ function setupReveal(): () => void {
 
   const reveal = (el: HTMLElement) => {
     el.classList.add('is-in');
-    el.querySelectorAll<HTMLElement>('[data-count]').forEach(animateCount);
-    if (el.hasAttribute('data-count')) animateCount(el);
+    el.querySelectorAll<HTMLElement>('[data-count]').forEach((n) => animateCount(n, live));
+    if (el.hasAttribute('data-count')) animateCount(el, live);
   };
 
   // Fallback for very old browsers: reveal everything immediately.
   if (!('IntersectionObserver' in window)) {
     targets.forEach(reveal);
-    return () => undefined;
+    return () => {
+      live.forEach(cancelAnimationFrame);
+      live.clear();
+    };
   }
 
   const observer = new IntersectionObserver(
@@ -71,7 +85,11 @@ function setupReveal(): () => void {
     { threshold: REVEAL_THRESHOLD, rootMargin: REVEAL_ROOT_MARGIN }
   );
   targets.forEach((el) => observer.observe(el));
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    live.forEach(cancelAnimationFrame); // stop any count-up still running at unmount
+    live.clear();
+  };
 }
 
 /**

@@ -1,5 +1,6 @@
 import React from 'react';
 import { PortfolioData, RouteKey } from 'types';
+import { canRunCinematic } from 'lib/env';
 import HomePage from 'features/home/HomePage';
 import AboutPage from 'features/about/AboutPage';
 import SkillsPage from 'features/skills/SkillsPage';
@@ -13,6 +14,17 @@ import ContactPage from 'features/contact/ContactPage';
 const CinematicIntro = React.lazy(() => import('components/effects/CinematicIntro'));
 
 /*
+ * Whether the cinematic opener will actually RUN — the same gate CinematicIntro
+ * checks internally (motion allowed; NOW includes mobile per the owner's ask for
+ * the same landing experience on phones). Rendering the lazy component is what
+ * triggers React.lazy to fetch its GSAP chunk, so we gate the RENDER on this:
+ * reduced-motion visitors (who would only see the component render null) still
+ * don't download GSAP. Evaluated once at module load (matches the component's own
+ * one-shot gate).
+ */
+const wantsCinematic = canRunCinematic();
+
+/*
  * routes.tsx — the single place that maps a route name to the page it renders.
  *
  * App used to switch pages with a chain of `{route === 'home' ? … : null}`.
@@ -20,6 +32,11 @@ const CinematicIntro = React.lazy(() => import('components/effects/CinematicIntr
  * `pageRenderers[route](ctx)`. Adding a page is a one-line change here (plus its
  * entry in navItems and the RouteKey union in types.ts). The Record<RouteKey, …>
  * type guarantees every route has exactly one renderer — no route can be missed.
+ *
+ * CHECKLIST when adding a route: (1) RouteKey union in types/index.ts,
+ * (2) navItems in content/portfolio.ts, (3) a renderer here, and — if the new
+ * route should get the de-scan overlay — (4) add it to SCAN_ROUTES in App.tsx.
+ * (4) is NOT type-enforced, so it's easy to miss.
  */
 
 export type PageContext = {
@@ -40,21 +57,24 @@ export const pageRenderers: Record<RouteKey, (ctx: PageContext) => React.ReactNo
   home: ({ data, navigate }) => (
     <>
       {/* Scroll-pinned cinematic opener (desktop, motion allowed) — releases
-          into the long-scroll below. Lazy (GSAP chunk); renders null on
-          mobile/reduced-motion. */}
-      <React.Suspense fallback={null}>
-        <CinematicIntro
-          name={data.hero.name}
-          role={data.hero.role}
-          tagline={data.hero.tagline}
-          summary={data.hero.summary}
-          photoSrc={data.hero.photo.src}
-          photoAlt={data.hero.photo.alt}
-          metrics={data.hero.metrics ?? []}
-          onViewProjects={() => navigate('projects')}
-          onContact={() => navigate('contact')}
-        />
-      </React.Suspense>
+          into the long-scroll below. Only mounted when it will actually run, so
+          the ~2MB GSAP chunk is never fetched for mobile/reduced-motion users
+          (who would only see it render null). */}
+      {wantsCinematic ? (
+        <React.Suspense fallback={null}>
+          <CinematicIntro
+            name={data.hero.name}
+            role={data.hero.role}
+            tagline={data.hero.tagline}
+            summary={data.hero.summary}
+            photoSrc={data.hero.photo.src}
+            photoAlt={data.hero.photo.alt}
+            metrics={data.hero.metrics ?? []}
+            onViewProjects={() => navigate('projects')}
+            onContact={() => navigate('contact')}
+          />
+        </React.Suspense>
+      ) : null}
       <HomePage data={data.hero} onNavigate={navigate} />
       <section id="home-about" aria-label="About"><AboutPage data={data.about} beatEnabled={false} /></section>
       <section id="home-skills" aria-label="Skills"><SkillsPage data={data.skills} beatEnabled={false} holoBadges /></section>

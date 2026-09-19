@@ -19,6 +19,7 @@ import { useSetCompanionHandoff } from 'hooks/interactions/CompanionContext';
 import { useCompanionContextBeat } from 'hooks/interactions/useCompanionContextBeat';
 import { companionSizeFor } from 'lib/companionConfig';
 import IntroCaptions from 'components/effects/IntroCaptions';
+import HelloGreeting from 'components/effects/HelloGreeting';
 
 const PlayIcon: React.FC = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -154,6 +155,12 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
       <div className="container-xxl">
         <div className="row align-items-start gy-5 gx-lg-4 gx-xl-5">
           <div className="col-lg-7 col-xl-8">
+            {/* Hello greeting — shown on the mobile hero (CSS-hidden on desktop,
+                where the cinematic has its own). Gives phones the iPhone-style
+                multilingual greeting even when the heavy cinematic is skipped. */}
+            <span className="hero-hello-greeting" aria-hidden="true">
+              <HelloGreeting />
+            </span>
             <span className="pill-label" data-reveal style={{ '--rd': '80ms' } as React.CSSProperties}>
               {data.role}
             </span>

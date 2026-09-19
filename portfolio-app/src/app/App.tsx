@@ -19,6 +19,7 @@ import { portfolioData, navItems } from 'content/portfolio';
 import { RouteKey } from 'types';
 import { useHashRoute } from 'hooks/useHashRoute';
 import { useInteractions } from 'hooks/useInteractions';
+import { useTheme } from 'hooks/useTheme';
 import { prefersReducedMotion } from 'lib/env';
 import { pageRenderers } from 'app/routes';
 import ErrorBoundary from 'components/ErrorBoundary';
@@ -60,7 +61,7 @@ type ScanRun = { id: number; variant: IntroVariant; running: boolean };
  * Takes no route prop — route-travel theming is cut, and context beats are
  * wired per-page via CompanionContext, not through this component. */
 const CompanionRoamer: React.FC = () => {
-  const { enabled, behavior, gait, idleSub, x, y, facing, strideRef, walkArcRef, rootRef, perchScaleRef } =
+  const { enabled, behavior, gait, idleSub, x, y, facing, walkArcRef, rootRef, perchScaleRef } =
     useCompanionBehavior();
   React.useEffect(() => {
     if (!enabled) return;
@@ -76,7 +77,6 @@ const CompanionRoamer: React.FC = () => {
       x={x}
       y={y}
       facing={facing}
-      strideRef={strideRef}
       walkArcRef={walkArcRef}
       rootRef={rootRef}
       perchScaleRef={perchScaleRef}
@@ -96,6 +96,7 @@ const AppShell: React.FC = () => {
   );
   const scanIdRef = React.useRef(0);
   const { hero } = portfolioData;
+  const { theme, toggle: toggleTheme } = useTheme();
 
   useInteractions(route);
 
@@ -198,7 +199,14 @@ const AppShell: React.FC = () => {
 
         <BackgroundFx />
 
-        <Navbar items={navItems} active={route} onNavigate={navigate} heroName={hero.name} />
+        <Navbar
+          items={navItems}
+          active={route}
+          onNavigate={navigate}
+          heroName={hero.name}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
 
         {isHome ? <HeroTicker /> : null}
 
