@@ -470,6 +470,11 @@ a:focus {
 .intro__caret {
   color: var(--accent);
 }
+/* the block-wipe name sits inline next to the caret */
+.intro__brand-wipe {
+  display: inline-block;
+  vertical-align: baseline;
+}
 
 .intro__role {
   font-family: var(--mono);
@@ -1297,6 +1302,12 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 6px 1px var(--accent);
+  /* PERF: no permanent will-change. These 50 dots only move while a nav item is
+     hovered; promoting all of them for the life of the page held 50 needless
+     GPU layers. Promote only while the parent is actually hovered. */
+}
+.nav-link:hover .magnetize-particles__dot,
+.nav-link:focus-visible .magnetize-particles__dot {
   will-change: transform, opacity;
 }
 .nav-link__label {
@@ -2141,9 +2152,14 @@ h1, h2, h3, h4, h5, h6 {
   --bs-card-bg: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--glass);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  /* PERF: NO backdrop-filter here. There are ~28 cards on the long-scroll Home
+     page and backdrop-filter forces the compositor to re-sample everything
+     behind each one on EVERY frame — profiling showed this as the single
+     largest contributor to scroll jank (median frame 34ms / ~29fps).
+     A slightly richer opaque tint reads almost identically over this dark
+     background at a fraction of the cost. Keep backdrop blur for the handful
+     of FIXED overlays (navbar) where it is cheap and actually visible. */
+  background: linear-gradient(160deg, rgba(27, 33, 58, 0.78), rgba(12, 16, 32, 0.86));
   transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
 }
 
@@ -2715,6 +2731,53 @@ h1, h2, h3, h4, h5, h6 {
 .cinematic-intro.is-offscreen *::after {
   animation-play-state: paused !important;
 }
+
+/* CALM (reduced-motion) mode: no pin, no lunge — the greeting/name and the
+   already-open laptop are BOTH shown, so switch from absolute-overlap (which
+   the motion timeline sequences apart in time) to a normal vertical stack:
+   greeting + name on top, the open laptop below. Auto height so it takes only
+   the room it needs, then the page scrolls on to the hero below. */
+.cinematic-intro--calm {
+  height: auto;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: clamp(1.5rem, 4vh, 3rem);
+  padding: clamp(4rem, 10vh, 7rem) 1.25rem clamp(2rem, 6vh, 4rem);
+}
+.cinematic-intro--calm .cine-hero-text {
+  position: relative;
+  inset: auto;
+  justify-content: flex-start;
+  gap: clamp(0.75rem, 2.5vh, 1.75rem);
+  will-change: auto;
+}
+/* keep the greeting fully above the kicker/name — give the line-box enough
+   height to contain the greeting SVG (which is up to ~9rem tall) so it can't
+   bleed onto the kicker below it. */
+.cinematic-intro--calm .hello-greeting-line {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* the greeting SVG draws its glyph low inside a tall box; reserve its full
+     height AND add clear space below so it can't touch the "I am" line. */
+  min-height: clamp(6rem, 13vw, 10rem);
+  margin-bottom: clamp(1rem, 3vh, 2.5rem);
+}
+/* the scroll cue is meaningless when nothing pins — hide it in calm mode.
+   also hide the role kicker: it's redundant here (it's in the top marquee and
+   on the laptop screen) and its line sits right under the tall greeting SVG,
+   where the two would visually collide. */
+.cinematic-intro--calm .cine-scrollcue,
+.cinematic-intro--calm .cine-kicker {
+  display: none;
+}
+.cinematic-intro--calm .cinematic-intro__stage {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  pointer-events: auto;
+}
 /* Slow-drifting curved line-work — the DEEPEST background layer of the intro
    (z below the constellation). Decorative, no pointer events. `color` feeds
    `currentColor` on the strokes so the lines carry the site accent. The SVG is
@@ -2748,7 +2811,7 @@ h1, h2, h3, h4, h5, h6 {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) and (pointer: coarse) {
   .floating-paths { display: none; }
 }
 
@@ -2860,7 +2923,7 @@ h1, h2, h3, h4, h5, h6 {
 /* reduced motion / static: fully written + filled, no drawing. */
 .hello-greeting__svg.is-static .hello-greeting__stroke { stroke-dashoffset: 0; animation: none; }
 .hello-greeting__svg.is-static .hello-greeting__fill { opacity: 0.92; animation: none; }
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) and (pointer: coarse) {
   .hello-greeting__stroke { stroke-dashoffset: 0; animation: none; }
   .hello-greeting__fill { opacity: 0.92; animation: none; }
 }
@@ -2889,7 +2952,8 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   color: var(--text-dim);
 }
-.cine-headline__name {
+.cine-headline__name,
+.cine-headline__name--wipe .bwt-line {
   font-size: clamp(2.8rem, 7vw, 6rem);
   font-weight: 800;
   background: linear-gradient(180deg, #ffffff 0%, rgba(170, 182, 204, 0.72) 100%);
@@ -2897,6 +2961,13 @@ h1, h2, h3, h4, h5, h6 {
   background-clip: text;
   color: transparent;
   filter: drop-shadow(0 12px 30px rgba(139, 123, 255, 0.25));
+}
+/* the wipe wrapper is a plain block that inherits size; gradient lives on its
+   .bwt-line (above) since SplitText moves the text there. */
+.cine-headline__name--wipe {
+  font-size: clamp(2.8rem, 7vw, 6rem);
+  font-weight: 800;
+  line-height: 1.02;
 }
 .cine-scrollcue {
   margin-top: 2rem;
@@ -3202,7 +3273,7 @@ h1, h2, h3, h4, h5, h6 {
   to { filter: hue-rotate(360deg); }
 }
 /* Reduced motion: hold a static neon colour, no cycling. */
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) and (pointer: coarse) {
   .cine-key { animation: none; }
 }
 .cine-laptop__trackpad {
@@ -3929,7 +4000,13 @@ hr {
 
 /* ---------- Reduced motion ---------- */
 
-@media (prefers-reduced-motion: reduce) {
+/* Scoped to TOUCH devices only (coarse pointer). On a real PC/laptop (fine
+   pointer) the site always renders exactly as built — the reduced-motion OS flag
+   is very often left on by accident there and most visitors don't know why the
+   site then looks stripped-down. The JS gate (canRunCinematic) matches this:
+   full motion on desktop regardless of the flag; touch users who set it still
+   get the calm, reduced experience. */
+@media (prefers-reduced-motion: reduce) and (pointer: coarse) {
   *,
   *::before,
   *::after {
@@ -3969,3 +4046,58 @@ hr {
     display: none !important;
   }
 }
+
+/* ---------- Recruiter document links (hero) ----------
+   A quiet secondary row under the main CTAs: cover letter + the university
+   placement letter that evidences the right-to-work claim. Deliberately
+   understated so they don't compete with "View projects" / "Download CV",
+   but still above the fold where a recruiter will see them. */
+.hero-docs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 0.9rem;
+  align-items: center;
+}
+.hero-doc-link {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #aab6cc);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(139, 123, 255, 0.35);
+  padding-bottom: 2px;
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+.hero-doc-link::before {
+  content: '↗ ';
+  color: var(--accent);
+}
+.hero-doc-link:hover,
+.hero-doc-link:focus-visible {
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ---------- Recruiter documents (contact page) ---------- */
+.contact-docs { display: flex; flex-direction: column; gap: 0.55rem; }
+.contact-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(139, 123, 255, 0.25);
+  border-radius: 10px;
+  background: rgba(139, 123, 255, 0.06);
+  text-decoration: none;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+}
+.contact-doc:hover,
+.contact-doc:focus-visible {
+  border-color: var(--accent);
+  background: rgba(139, 123, 255, 0.12);
+  transform: translateY(-1px);
+}
+.contact-doc__label { font-weight: 600; color: var(--text); font-size: 0.92rem; }
+.contact-doc__label::before { content: '↓ '; color: var(--accent); }
+.contact-doc__note { font-size: 0.76rem; color: var(--text-secondary, #8d9ab2); }

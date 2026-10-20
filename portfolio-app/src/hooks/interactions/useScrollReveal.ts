@@ -44,9 +44,12 @@ function animateCount(el: HTMLElement, live: Set<number>): void {
  */
 function setupReveal(): () => void {
   const live = new Set<number>(); // in-flight count-up rAF ids, cancelled on cleanup
+  // Skip elements already revealed OR already wired by an earlier pass — the hook
+  // runs several passes to survive the navigation race, and this keeps re-runs
+  // idempotent (no element observed/count-up'd twice).
   const targets = Array.from(
     document.querySelectorAll<HTMLElement>('[data-reveal]')
-  ).filter((el) => !el.classList.contains('is-in'));
+  ).filter((el) => !el.classList.contains('is-in') && el.dataset.revealWired !== '1');
 
   const groupCounter = new Map<Element, number>();
   targets.forEach((el) => {
@@ -84,9 +87,32 @@ function setupReveal(): () => void {
     },
     { threshold: REVEAL_THRESHOLD, rootMargin: REVEAL_ROOT_MARGIN }
   );
-  targets.forEach((el) => observer.observe(el));
+
+  // Reveal anything ALREADY in the viewport right now, synchronously. On a
+  // client-side navigation the new page mounts with its above-the-fold content
+  // already on screen; the IntersectionObserver's first callback can be missed
+  // in that mount/scroll race (observed: content stuck at opacity:0 until a
+  // reload). A direct rect check guarantees on-screen content reveals; the
+  // observer still handles everything that scrolls in later.
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const claimed: HTMLElement[] = [];
+  targets.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    const visible = r.top < vh * 0.92 && r.bottom > 0; // matches the -8% rootMargin intent
+    if (visible && r.height > 0) {
+      reveal(el);
+    } else {
+      el.dataset.revealWired = '1'; // claim it so later passes don't double-observe
+      claimed.push(el);
+      observer.observe(el);
+    }
+  });
   return () => {
     observer.disconnect();
+    // release any still-unrevealed claims so a later pass / remount can re-wire them
+    claimed.forEach((el) => {
+      if (!el.classList.contains('is-in')) delete el.dataset.revealWired;
+    });
     live.forEach(cancelAnimationFrame); // stop any count-up still running at unmount
     live.clear();
   };
@@ -99,13 +125,37 @@ function setupReveal(): () => void {
 export function useScrollReveal(routeKey: string): void {
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    let cleanup: () => void = () => undefined;
-    const id = requestAnimationFrame(() => {
-      cleanup = setupReveal();
+
+    // setupReveal() only observes the [data-reveal] elements present WHEN IT RUNS
+    // and each observer instance is single-shot (unobserves on reveal). On a
+    // client-side navigation the new page's DOM is not reliably in place at the
+    // first frame — the scan overlay + smooth-scroll-to-top + React's commit can
+    // land the new content a beat later, so a single pass observed the OUTGOING
+    // page's stale nodes and the new page's content stayed hidden until a reload.
+    //
+    // Fix: run setupReveal on a few staggered passes so whichever pass catches
+    // the settled DOM wires up the reveals. Each pass reveals on-screen content
+    // immediately (rect check inside setupReveal) and observes the rest; passes
+    // skip already-revealed / already-observed nodes, so re-running is cheap and
+    // idempotent.
+    const cleanups: Array<() => void> = [];
+    const timers: number[] = [];
+    const runPass = () => cleanups.push(setupReveal());
+
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(runPass); // after first paint
     });
+    // Extra passes to survive the navigation/scan/scroll race above.
+    timers.push(window.setTimeout(runPass, 120));
+    timers.push(window.setTimeout(runPass, 360));
+    timers.push(window.setTimeout(runPass, 700));
+
     return () => {
-      cancelAnimationFrame(id);
-      cleanup();
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+      timers.forEach(clearTimeout);
+      cleanups.forEach((fn) => fn());
     };
   }, [routeKey]);
 }

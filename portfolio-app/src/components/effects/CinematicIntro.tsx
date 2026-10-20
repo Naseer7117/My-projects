@@ -1,10 +1,11 @@
 import React from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { canRunCinematic } from 'lib/env';
+import { canRunCinematic, canShowCinematic } from 'lib/env';
 import HelloGreeting from 'components/effects/HelloGreeting';
 import ConstellationGrid from 'components/effects/ConstellationGrid';
 import FloatingPaths from 'components/effects/FloatingPaths';
+import BlockWipeText from 'components/effects/BlockWipeText';
 
 /*
  * CinematicIntro — a scroll-pinned "laptop opening" opener for the top of Home
@@ -59,10 +60,15 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
   // POINTLESS once you scroll past the top — this gate freezes all of it.
   const [inView, setInView] = React.useState(true);
 
-  // Motion-only (now runs on MOBILE too — owner wants the same landing on phones).
-  // One-shot at mount — a mid-scroll flip would leave a half-torn-down pin. The
-  // mouse-sheen effect below simply no-ops on touch; GSAP ScrollTrigger scrubs on
-  // touch scroll. Heavy sub-parts self-tune via isLowPowerDevice().
+  // Two gates:
+  //  • shown   — render the cinematic at all (greeting/laptop/name). Includes
+  //              reduced-motion visitors; only low-power devices are excluded.
+  //  • enabled — run the FULL motion (scroll-lunge, scrubbed pin, drifting paths,
+  //              constellation rAF, mouse-sheen). False under reduced-motion.
+  // When shown && !enabled we render a CALM static laptop (open, content visible,
+  // gentle fade) — see the reduced-motion branch in the timeline effect below.
+  // One-shot at mount — a mid-scroll flip would leave a half-torn-down pin.
+  const shown = canShowCinematic();
   const enabled = canRunCinematic();
 
   // Pause the whole intro's animation load when it scrolls out of view. A
@@ -80,10 +86,22 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
     // the visitor is anywhere in that band (+1 screen margin), which the pin can't
     // fool. rAF-throttled.
     let raf = 0;
+    // PERF: remember the last value and only call setInView when it actually
+    // FLIPS. Calling it every scroll frame re-rendered this whole subtree
+    // (laptop + 60 keys + constellation + paths) on each frame — CPU profiling
+    // measured this handler at 30% of main-thread time during an intro scroll.
+    // The value changes exactly twice per visit, so the state update should too.
+    let lastInView: boolean | null = null;
     const check = () => {
       raf = 0;
-      const past = window.scrollY < window.innerHeight * 2.4; // in the intro band
-      setInView(past);
+      // 2.4 screens kept the constellation rAF (the most expensive thing on the
+      // page) alive long after the intro had scrolled away. The pin owns ~1.6
+      // screens, so 1.8 covers it with margin and frees the main thread sooner.
+      const past = window.scrollY < window.innerHeight * 1.8; // in the intro band
+      if (past !== lastInView) {
+        lastInView = past;
+        setInView(past);
+      }
     };
     const onScroll = () => {
       if (raf) return;
@@ -119,7 +137,27 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
     };
   }, [enabled]);
 
-  // Pinned "laptop opening" timeline.
+  // Reduced-motion CALM setup: render the laptop already-open with content
+  // visible, and the headline/greeting simply present — no pin, no lunge, no
+  // scrubbed timeline. Runs when we SHOW the cinematic but full motion is off.
+  React.useEffect(() => {
+    if (enabled || !shown) return; // full-motion path handled by the next effect
+    const root = rootRef.current;
+    if (!root) return;
+    const ctx = gsap.context(() => {
+      // Everything at its resting, fully-revealed state.
+      gsap.set('.cine-line', { autoAlpha: 1, y: 0, scale: 1, filter: 'blur(0px)' });
+      gsap.set('.cine-laptop', { autoAlpha: 1, y: 0, scale: 1 });
+      gsap.set('.cine-laptop__screen', { rotationX: 0 }); // lid upright/open
+      gsap.set(['.cine-screen-glow', '.cine-screen-content', '.cine-scr__body', '.cine-stat', '.cine-scr__cta'], {
+        autoAlpha: 1,
+        y: 0,
+      });
+    }, root);
+    return () => ctx.revert();
+  }, [enabled, shown]);
+
+  // Pinned "laptop opening" timeline (FULL motion only).
   React.useEffect(() => {
     if (!enabled) return;
     const root = rootRef.current;
@@ -258,7 +296,7 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
     };
   }, [enabled]);
 
-  if (!enabled) return null;
+  if (!shown) return null;
 
   const firstName = name.split(' ')[0];
   const lastName = name.split(' ').slice(1).join(' ');
@@ -266,7 +304,7 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
   return (
     <div
       ref={rootRef}
-      className={`cinematic-intro${inView ? '' : ' is-offscreen'}`}
+      className={`cinematic-intro${inView ? '' : ' is-offscreen'}${enabled ? '' : ' cinematic-intro--calm'}`}
       aria-hidden="true"
     >
       {/* Slow-drifting curved line-work, the deepest background layer. */}
@@ -285,7 +323,26 @@ const CinematicIntro: React.FC<CinematicIntroProps> = ({
         <span className="cine-line cine-kicker">{role}</span>
         <h1 className="cine-line cine-headline">
           <span className="cine-headline__lead">I am</span>
-          <span className="cine-headline__name">{name}</span>
+          {/* Star-wipe reveal on the name — IDENTICAL to the loading screen's
+              brand reveal (same colour, delay, duration, and NO extra entrance
+              animation): the text is unveiled purely by the clip that tracks the
+              ribbon edge, so the letters appear exactly in step with the wipe.
+              The only difference is waitForIntro, which holds it until the
+              loading curtain has opened so it plays in view. The headline's
+              scroll-lunge still runs later on the parent. */}
+          <BlockWipeText
+            className="cine-headline__name cine-headline__name--wipe"
+            blockColor="var(--accent-2)"
+            delay={0.15}
+            // Slower than the loading brand's 0.6s ON PURPOSE: this line is ~2.2x
+            // wider (885px vs 401px), so an identical duration makes the ribbon
+            // travel more than twice as fast. 1.15s gives roughly the same
+            // left-to-right SPEED, which is what reads as "matching".
+            duration={1.15}
+            waitForIntro
+          >
+            {name}
+          </BlockWipeText>
         </h1>
         <span className="cine-line cine-scrollcue">Scroll to open ↓</span>
       </div>

@@ -55,11 +55,11 @@ export const portfolioData: PortfolioData = {
   hero: {
     name: 'Naseeruddin Shaik',
     role: 'Software Engineer',
-    tagline: 'I build and test enterprise Java backends — and I am diving into data science.',
+    tagline: 'Java & Spring Boot backend engineer — now building data science skills in the UK.',
     summary:
-      'Software engineer with a year building and supporting enterprise Java 17 and Spring Boot applications at SIA Publishers, now pursuing an MSc in Data Science & Analytics in the UK.',
+      'London-based software engineer. I shipped 24+ production REST APIs in Java 17 / Spring Boot for an education platform serving 500,000+ users, and automated the tests that saved my team 11+ hours a week. Now reading an MSc in Data Science & Analytics.',
     introduction:
-      'I design REST APIs, model the SQL behind them, automate testing with Selenium, and ship through CI/CD. I care about clean, readable code and production systems that stay reliable — and I am expanding into data analytics and machine learning.',
+      'I design REST APIs, model the SQL behind them, automate the tests, and ship through CI/CD — a year of it in production at SIA Publishers, in a six-person Agile team. I am now pairing that engineering foundation with Python, statistics and machine learning on my MSc, and looking for a placement year where I can do both.',
     photo: {
       src: heroPortraitMain,
       alt: 'Portrait of Naseeruddin Shaik',
@@ -78,18 +78,18 @@ export const portfolioData: PortfolioData = {
     },
     spotlight: [
       {
-        title: 'Read the story',
-        description: 'From a B.Tech in Guntur to backend engineering, and now an MSc in the UK.',
+        title: 'Experience & education',
+        description: 'A year of production Java at SIA Publishers, a B.Tech, and an MSc in Data Science (2028).',
         route: 'about',
       },
       {
-        title: 'Tech stack',
-        description: 'Java 17, Spring Boot, SQL, Selenium, AWS, Azure — and a growing data toolkit.',
+        title: 'Technical skills',
+        description: 'Java 17 · Spring Boot · PostgreSQL · Selenium · CI/CD — plus Python, R and SQL for data.',
         route: 'skills',
       },
       {
-        title: 'See the work',
-        description: 'Enterprise APIs, test automation, and the code behind this site.',
+        title: 'Selected work',
+        description: 'Production APIs, automated test suites, and this site — built in React 19 and TypeScript.',
         route: 'projects',
       },
     ],
@@ -104,20 +104,28 @@ export const portfolioData: PortfolioData = {
       { label: 'Data', value: 'SQL · PostgreSQL', detail: 'Queries & visualization' },
       { label: 'Cloud', value: 'AWS · Azure', detail: 'Deployments & administration' },
     ],
+    // Credibility metrics. These are deliberately about EXPERIENCE, not tool
+    // counts — "15+ technologies" reads as shallow to an experienced reviewer,
+    // whereas "1 year in production" is a fact they can interview against.
     metrics: [
-      { value: 6, suffix: '', label: 'Programming languages' },
-      { value: 15, suffix: '+', label: 'Technologies & tools' },
-      { value: 5, suffix: '+', label: 'Certifications & internships' },
-      { value: 2, suffix: '', label: 'Cloud platforms (AWS, Azure)' },
+      { value: 24, suffix: '+', label: 'Production REST APIs shipped' },
+      { value: 500, suffix: 'k+', label: 'Users on the platform I built for' },
+      { value: 11, suffix: '+ hrs', label: 'Manual testing saved per week' },
+      { value: 40, suffix: 'h', label: 'Available per week (placement 2027)' },
     ],
-    availabilityNote: 'Open to graduate & entry-level software and data roles — hybrid, remote, or on-site.',
+    availabilityNote:
+      'London-based · Seeking a full-time placement year starting 25 Jan – 26 Feb 2027 (University of Hertfordshire sandwich MSc). Eligible to work 40 hrs/week during placement. Offers need confirming by 2 Dec 2026 — university approval takes 6–8 weeks.',
+    // Recruiter documents, served from public/docs/.
+    cvUrl: '/docs/Naseeruddin-Shaik-CV.pdf',
+    coverLetterUrl: '/docs/Naseeruddin-Shaik-Cover-Letter.pdf',
+    placementLetterUrl: '/docs/UH-Placement-Letter.jpg',
   },
   about: {
-    headline: 'Backend-focused software engineer, now expanding into data science',
+    headline: 'Backend engineer with production Java experience, now specialising in data science',
     biography: [
-      'I am Naseeruddin Shaik — a software engineer originally from Guntur, India, now based in the UK. I hold a B.Tech in Computer Science and spent a year as an Application Developer at SIA Publishers and Distributors, building and supporting enterprise Java and Spring Boot applications.',
-      'My core work is backend: designing REST APIs, modelling data in PostgreSQL and SQL Server, and shipping through CI/CD pipelines. I automate testing with Selenium — functional, integration, and end-to-end — carried over from earlier freelance QA work, and I write SQL for reporting and data visualization.',
-      'I am currently pursuing an MSc in Data Science and Analytics at the University of Hertfordshire, working with Python, Jupyter, R, and R Studio. I hold certifications and internships in Cyber Security, Cloud (Microsoft Azure & AWS), JavaScript, Salesforce, and Data Visualization, and I am fluent in English (C1/C2) alongside Urdu, Telugu, and Hindi. I am actively seeking graduate and entry-level roles in software and data.',
+      'I am a software engineer based in London, currently reading an MSc in Data Science & Analytics at the University of Hertfordshire (a sandwich degree, graduating 2028). I am on a Student visa and hold a university placement-year letter, which means I can work 40 hours a week in an IT or data science role — so I am available now for a placement, internship or industrial year, not only after graduation.',
+      'Before moving to the UK I spent a year as an Application Developer at SIA Publishers and Distributors in Hyderabad, writing production Java 17 and Spring Boot. That meant designing REST APIs, modelling data in PostgreSQL and SQL Server, automating the test suite with Selenium, shipping through CI/CD, and being on the hook when something broke in production. Before that I worked as a freelance application tester, which is where the test-first habit came from.',
+      'On the MSc I work in Python, Jupyter, R and R Studio across statistics and machine-learning fundamentals. I also hold certifications in Cyber Security, Microsoft Azure, AWS, JavaScript, Salesforce and Data Visualization, and speak English (C1/C2), Urdu, Telugu and Hindi. What I am looking for is a team where I can keep writing backend code while growing into data — and I am happy to start on either side.',
     ],
     timeline: [
       {
@@ -127,7 +135,7 @@ export const portfolioData: PortfolioData = {
         details: [
           'Postgraduate study in data science: statistics, machine-learning fundamentals, and analytics.',
           'Hands-on with Python and Jupyter Notebook, plus statistical modelling in R and R Studio.',
-          'Building on a software-engineering foundation to work across both data and backend.',
+          'Holding a university placement-year letter — available 40 hrs/week for an IT or data role now.',
         ],
       },
       {
@@ -298,37 +306,38 @@ export const portfolioData: PortfolioData = {
   projects: {
     featured: [
       {
-        title: 'Enterprise Backend & APIs',
-        subtitle: 'Java 17 · Spring Boot · REST — SIA Publishers',
+        title: 'Enterprise Application Backend',
+        subtitle: 'Java 17 · Spring Boot · PostgreSQL — SIA Publishers (12 months, production)',
         description:
-          'A year building and supporting enterprise application backends: designing REST APIs, modelling data, and shipping through CI/CD at SIA Publishers and Distributors.',
+          'A year on the server side of an educational platform serving 500,000+ users, in a six-person Agile team. I owned REST endpoints end to end — from the API contract, through the Spring service layer, down to the schema — and stayed on them once they were live.',
         contributions: [
-          'Developed REST APIs and Spring Boot services with Hibernate/JPA persistence.',
-          'Designed and queried SQL Server and PostgreSQL databases, including reporting queries.',
-          'Set up CI/CD pipelines and resolved backend and production incidents.',
+          'Built 24+ production REST APIs (GET, POST, PUT, DELETE) in Java 17 / Spring Boot with Hibernate and JPA persistence.',
+          'Managed live PostgreSQL and SQL Server databases — validating data flow and integrity, and resolving real user data issues in production (misplaced books, incorrect orders).',
+          'Wrote the SQL reporting queries that gave the operations team accurate, real-time sales and production figures.',
+          'Took production incidents: reproduced the fault, traced it through service and database layers, and shipped the fix.',
         ],
         outcomes: [
-          'Reliable API endpoints powering enterprise applications.',
-          'Faster, safer releases through automated build and deploy.',
-          'A deeper command of the full request → service → database path.',
+          '24+ live endpoints serving a platform used by over half a million people.',
+          'Operations got real-time business figures instead of waiting on manual reporting.',
+          'Practical command of the whole request → service → database path, including when it breaks in production.',
         ],
-        tech: ['Java 17', 'Spring Boot', 'PostgreSQL', 'SQL Server', 'CI/CD'],
+        tech: ['Java 17', 'Spring Boot', 'Hibernate / JPA', 'PostgreSQL', 'SQL Server', 'CI/CD'],
         repoUrl: GITHUB_URL,
       },
       {
-        title: 'Test Automation with Selenium',
-        subtitle: 'Functional, integration & end-to-end QA',
+        title: 'Automated Test Suite',
+        subtitle: 'Selenium · Java & Python — saved the team 11+ hours a week',
         description:
-          'Automated testing across web and mobile applications — validating APIs, backend data flows, performance, and UI — from freelance QA work and continued at SIA.',
+          'Test automation across web and mobile applications, begun in freelance QA work and carried into my role at SIA. The goal was simple: stop shipping regressions that a machine could have caught — and stop burning the team’s week on manual passes.',
         contributions: [
-          'Built Selenium suites (Java & Python) for functional and integration testing.',
-          'Tested APIs and validated backend data flows against the database.',
-          'Checked application performance and UI alignment across releases.',
+          'Automated 12+ business-logic tests with Selenium (Java and Python) and wired them into the CI/CD release path.',
+          'Tested REST APIs directly and validated that what the API returned matched what landed in the database.',
+          'Documented defects with clear reproduction steps and retested fixes to confirm resolution.',
         ],
         outcomes: [
-          'Caught regressions before they reached production.',
-          'Repeatable test coverage for web and mobile apps.',
-          'A test-first habit carried into every build.',
+          'Saved the team an estimated 11+ hours of manual testing every week.',
+          'Regressions caught in the pipeline rather than by users after release.',
+          'A repeatable suite the team ran on every change instead of ad-hoc manual passes.',
         ],
         tech: ['Selenium', 'Java', 'Python', 'REST', 'Integration testing'],
         repoUrl: GITHUB_URL,
@@ -337,32 +346,34 @@ export const portfolioData: PortfolioData = {
         title: 'Developer Portfolio Platform',
         subtitle: 'React 19 + TypeScript single-page application',
         description:
-          'This site — a hand-built React 19 + TypeScript SPA with a cursor-reactive particle constellation, custom cursor, scroll choreography, and a dark cinematic design system, no template.',
+          'The site you are reading. Built from scratch — no template, no UI kit — as a working demonstration of front-end engineering: a scroll-choreographed intro, a cursor-reactive particle canvas, and a typed content model that drives every page.',
         contributions: [
-          'Architected typed React components driven by a single content model.',
-          'Hand-rolled the motion engine: scroll reveals, 3D tilt, magnetic buttons, and a reactive particle canvas.',
-          'Built a fully responsive dark design system that respects reduced-motion.',
+          'Architected ~40 typed React components driven from a single content source file.',
+          'Hand-rolled the motion layer in GSAP: scroll-pinned sequences, reveal choreography, 3D tilt and a reactive particle canvas.',
+          'Built a responsive dark/light design system that degrades properly on low-power devices and under reduced-motion.',
         ],
         outcomes: [
-          'A live demonstration of my React and TypeScript work.',
-          'Loads fast and works from small phones to widescreen.',
-          'All content updates from one typed file.',
+          'Runs the full experience on desktop and adapts it for phones rather than dropping it.',
+          'All page content changes from one typed file — the type system catches mistakes at build time.',
+          'Ships green through TypeScript, ESLint, tests and a production build.',
         ],
-        tech: ['React 19', 'TypeScript', 'Canvas', 'CSS'],
+        tech: ['React 19', 'TypeScript', 'GSAP', 'Canvas', 'CSS'],
         repoUrl: 'https://github.com/Naseer7117/My-projects/tree/main/portfolio-app',
       },
     ],
     labs: [
       {
         title: 'Data Visualization & SQL',
-        description: 'Reporting queries and dashboards turning raw data into insight, from SIA work and a TCS data-visualization internship.',
-        linkLabel: 'Ask me about it',
+        description:
+          'Reporting queries and dashboards behind internal tooling at SIA, plus a TCS data-visualization internship — the work that pulled me toward data science.',
+        linkLabel: 'Discuss this work',
         linkHref: '#contact',
       },
       {
         title: 'Cloud & Certifications',
-        description: 'Hands-on labs across AWS and Microsoft Azure, plus certifications in Cyber Security, Salesforce, and JavaScript.',
-        linkLabel: 'Request a walkthrough',
+        description:
+          'Certified across Microsoft Azure and AWS, with further certifications in Cyber Security, Salesforce and JavaScript — deployment and administration, not just theory.',
+        linkLabel: 'See certifications',
         linkHref: '#contact',
       },
     ],
@@ -385,7 +396,24 @@ export const portfolioData: PortfolioData = {
     email: EMAIL,
     location: 'Thornton Heath, London, United Kingdom · Open to relocate',
     availability:
-      'Open to graduate and entry-level software and data roles — hybrid, remote, or on-site. I usually reply within a day.',
+      'Seeking a full-time placement year starting between 25 January and 26 February 2027, running to 24 September 2027 (minimum 30 working weeks) as the sandwich year of my MSc. I can work 40 hrs/week during it. Please note offers need to be confirmed by 2 December 2026 — university approval takes 6–8 weeks. London-based, open to hybrid, remote or on-site, happy to relocate. I reply within a day.',
+    documents: [
+      {
+        label: 'Download CV (PDF)',
+        href: '/docs/Naseeruddin-Shaik-CV.pdf',
+        note: 'One page · ready to forward or attach to an ATS record',
+      },
+      {
+        label: 'Cover letter (PDF)',
+        href: '/docs/Naseeruddin-Shaik-Cover-Letter.pdf',
+        note: 'Template version — I tailor it per role',
+      },
+      {
+        label: 'University placement letter',
+        href: '/docs/UH-Placement-Letter.jpg',
+        note: 'University of Hertfordshire · confirms the placement dates and full-time hours',
+      },
+    ],
     services: [
       {
         title: 'Backend & API development',
@@ -400,20 +428,6 @@ export const portfolioData: PortfolioData = {
         description: 'Queries, reporting, and data visualization that turn raw datasets into insight.',
       },
     ],
-    testimonials: [
-      {
-        quote:
-          'Picks up new technology quickly and turns it into working code — reliable on the fundamentals and easy to collaborate with.',
-        author: 'Team Lead',
-        role: 'SIA Publishers and Distributors',
-      },
-      {
-        quote:
-          'Communicates clearly, documents the work, and follows through until the change is actually shipped.',
-        author: 'Project Supervisor',
-        role: 'Freelance engagement',
-      },
-    ],
     socials: [
       { label: 'GitHub', href: GITHUB_URL },
       { label: 'LinkedIn', href: LINKEDIN_URL },
@@ -421,9 +435,9 @@ export const portfolioData: PortfolioData = {
       { label: 'Phone', href: 'tel:+918143214862' },
     ],
     schedule: [
-      { label: 'Intro call', slots: '30-minute chat to talk through a role or project' },
-      { label: 'Technical deep-dive', slots: 'Walk through my code and how I approach the build' },
-      { label: 'Start date', slots: 'Available for internships and roles alongside my MSc' },
+      { label: 'Right to work', slots: 'Student visa + university placement letter — 40 hrs/week in IT or data science' },
+      { label: 'Start date', slots: 'Available immediately for a placement, internship or graduate role' },
+      { label: 'Intro call', slots: '30 minutes to talk through the role — or a technical walk-through of my code' },
     ],
   },
 

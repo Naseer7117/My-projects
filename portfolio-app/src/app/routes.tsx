@@ -1,6 +1,6 @@
 import React from 'react';
 import { PortfolioData, RouteKey } from 'types';
-import { canRunCinematic } from 'lib/env';
+import { canShowCinematic } from 'lib/env';
 import HomePage from 'features/home/HomePage';
 import AboutPage from 'features/about/AboutPage';
 import SkillsPage from 'features/skills/SkillsPage';
@@ -14,15 +14,15 @@ import ContactPage from 'features/contact/ContactPage';
 const CinematicIntro = React.lazy(() => import('components/effects/CinematicIntro'));
 
 /*
- * Whether the cinematic opener will actually RUN — the same gate CinematicIntro
- * checks internally (motion allowed; NOW includes mobile per the owner's ask for
- * the same landing experience on phones). Rendering the lazy component is what
- * triggers React.lazy to fetch its GSAP chunk, so we gate the RENDER on this:
- * reduced-motion visitors (who would only see the component render null) still
- * don't download GSAP. Evaluated once at module load (matches the component's own
- * one-shot gate).
+ * Whether to RENDER the cinematic opener. This is the WIDER gate (canShowCinematic):
+ * it INCLUDES reduced-motion visitors — they still see the greeting/laptop/name,
+ * just in a calm static state (CinematicIntro decides full-motion vs. calm itself
+ * via canRunCinematic). Only low-power devices are excluded (they get the
+ * lightweight mobile hero). Rendering the lazy component fetches its GSAP chunk;
+ * that's fine now — reduced-motion users get a visible (static) laptop for it.
+ * Evaluated once at module load.
  */
-const wantsCinematic = canRunCinematic();
+const wantsCinematic = canShowCinematic();
 
 /*
  * routes.tsx — the single place that maps a route name to the page it renders.

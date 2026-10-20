@@ -244,6 +244,10 @@ below); only wire further new states if the owner asks.
   cheapened at ≤767px; companion drop-shadow killed on mobile.
 - **Architecture refactor** (earlier): route registry + ErrorBoundary; god-hook
   split into focused hooks; magic numbers live in `src/lib/constants.ts`.
+- **Block-wipe name reveal** (`BlockWipeText.tsx`): coloured block sweeps
+  across "Naseeruddin Shaik" then out to reveal it — loading screen (lazy,
+  `--accent-2`) and cinematic headline (`--accent`, before the scroll-lunge).
+  Gradient-clip text on the cinematic name is preserved via a `.bwt-line` rule.
 
 ## 6. Verification playbook
 
@@ -317,6 +321,287 @@ Related: gate mobile clip warmup to only the clips the corner buddy plays.
 
 ## 8. Session log
 
+- **2026-10-19** — **CRITICAL BUG FOUND & FIXED: site showed as "a basic site" on
+  most other people's machines.** Owner reported that on friends' PCs and at his
+  university the greeting / footer robot / dots / laptop / scroll animations were
+  all missing, across Chrome, Edge AND Brave with DEFAULT settings. Not a Shields
+  issue, not a network issue.
+  **Verified the live site was NOT at fault:** HTML shell 200, main.js 200
+  (396KB), main.css 200, and ALL 11 lazy chunks 200. Clean headless Chrome renders
+  the deployed site perfectly (cinematic + greeting + laptop + 4 canvases, zero JS
+  errors).
+  **ROOT CAUSE — `isLowPowerDevice()`.** The DEPLOYED gate is
+  `cores <= 4 || mem <= 4` with no desktop escape hatch. REPRODUCED against the
+  live site by spoofing hardware: 4-core/8GB, 4-core/4GB, 2-core/4GB and
+  Chromebook profiles ALL rendered the stripped "basic site"; only 8-core/16GB got
+  the full one. That `||` with a <=4 threshold excludes most university lab PCs,
+  office desktops and budget laptops — i.e. most of his audience.
+  **FIX:** any `pointer: fine` device (mouse/trackpad = a real computer) is now
+  NEVER low-power, with no viewport-width condition (the earlier local fix still
+  required innerWidth>=900, so a narrow desktop window still failed). For touch
+  devices the test became `weakCores && weakMem` (BOTH) instead of either —
+  an 8-core phone reporting 4GB was being needlessly downgraded.
+  Verified: all 6 previously-failing desktop profiles now render the FULL site;
+  phone tiering still correct (good + mid phones get cinematic, 4c/4GB phone gets
+  the lightweight hero, content present in every case).
+  **DO NOT reintroduce an `||` on cores/mem, and do not gate desktops on these
+  values at all — browsers spoof/under-report them.**
+  **NOTE: NONE of this session's work is deployed.** Everything is uncommitted on
+  `master`; Vercel is serving commit 183a53e. The live site still has the bug
+  until the owner commits + pushes.
+
+- **2026-10-16 (perf, part 3 — ROOT CAUSE, from the owner's REAL trace).**
+  Owner supplied a DevTools Performance trace from his own machine (RTX 3050).
+  It named the culprit unambiguously: **`Recalculate Style` = 8,214ms self time
+  = 57.7% of the whole trace**, with Rendering (9,253ms) >> Scripting (4,045ms),
+  plus Layerize 463ms / Pre-paint 340ms and a "Forced reflow" insight. Also
+  **CLS 0.96** (very poor; good is <0.1) — layout shift still UNFIXED, see below.
+  **Root cause: per-frame CSS custom properties written to `:root`.** Changing a
+  custom property on `document.documentElement` invalidates style for the ENTIRE
+  document subtree (~1,000 elements here). Three vars were doing this:
+  `--sp`/`--sy` every scroll frame (useScrollProgress) and `--mx`/`--my` on every
+  pointermove, UNTHROTTLED (useCursorFx).
+  Only ONE element consumes each: `.scroll-progress` reads --sp, `.aurora` reads
+  --sy, `.spotlight` reads --mx/--my. All three are now written **onto those
+  elements** instead of :root, so invalidation stays local. Cursor writes are also
+  rAF-throttled now. Verified: `rootHasSp/Sy/Mx` all false; bar/aurora/spotlight
+  still update correctly (progress scaleX 0.546, aurora translateY 224px).
+  **DO NOT move these back to :root** — that is the single biggest perf footgun
+  on this site.
+  **HARNESS IS NOW UNRELIABLE — STOP USING IT FOR FPS.** The headless Intel-UHD
+  Chrome gave back-to-back footer readings of 29 fps and 48 fps in the same run
+  set; it cannot resolve these changes. Future perf work must be measured from a
+  real DevTools trace on the owner's machine.
+  **STILL OPEN:** (a) CLS 0.96 — nothing done about layout shift yet; likely the
+  hero portrait / greeting swapping without reserved space. (b) idle fps at the
+  top was 36 (constellation) and 48 (60 RGB keys) — both still candidates if the
+  owner's next trace still shows Rendering-dominated frames.
+
+- **2026-10-16 (perf, part 2 — THE REAL FIXES).** Part 1's numbers were measured
+  with script-driven `window.scrollTo`, which turned out to dominate its own
+  profile (307ms of "scroll cost" was the harness). Re-measured with REAL wheel
+  events (`Input.dispatchMouseEvent type:'mouseWheel'`) — that is the only
+  trustworthy method here; do not use scrollTo for perf work again.
+  Baseline (real wheel): intro **18.1 fps**, content 36.0, footer 47.8.
+  IDLE fps was fine away from the intro (72-73) — the problem was scroll-time.
+  **TWO forced-work bugs found by CPU profiling, both fixed:**
+  (1) `useScrollProgress` read `document.body.scrollHeight` INSIDE the rAF scroll
+      handler = a forced synchronous layout of a ~10,000px document every frame.
+      Measured at **43.3% of main-thread time**. Now cached, with a
+      `ResizeObserver` on <body> to keep it correct (the old comment correctly
+      noted the page grows without firing resize — that was why it was per-frame).
+      Also only toggles the navbar class when the boolean actually flips.
+      -> intro 18.1 **-> 28.7 fps (+59%)**, content 36 -> 47.4 (+32%).
+  (2) `CinematicIntro`'s `check` called `setInView()` on EVERY scroll frame, so the
+      whole subtree (laptop + 60 keys + constellation + paths) re-rendered each
+      frame. Measured at **30.3%** after fix (1). Now guarded by a `lastInView`
+      ref so the state updates only on the two real transitions.
+  **MEASUREMENT CAVEAT:** harness is headless Chrome on **Intel UHD** integrated
+  graphics (not the owner's RTX 3050). Run-to-run variance is +/-5-8 fps, so treat
+  single readings as noise; the CPU-profile percentages are the reliable signal.
+  60fps was NOT reached in this harness and has not been verified on real hardware.
+
+- **2026-10-16 (perf)** — **Scroll-jank investigation.** Owner reported stutter even
+  on an RTX 3050. Profiled with CDP (`Profiler` + longtask observer + rAF deltas).
+  **Root cause is MAIN-THREAD JS, not the GPU** — CPU profile showed
+  `ConstellationGrid`'s `render` loop alone at **589ms / 14.7%** of main-thread
+  time during a scroll, far above everything else. At `spacing:55` on 1536x960 it
+  built ~550 nodes and ran ~6,600 neighbour distance-checks + line draws EVERY
+  frame, at DPR 2 (4x the pixels).
+  Fixes applied: (1) `spacing 55 -> 66` and `maxDpr 2 -> 1.5` in ConstellationGrid
+  (~30% fewer nodes; REACH kept at 2 so the mesh still visibly links — at
+  spacing 78 it degraded to a disconnected dot field, which looked broken);
+  (2) **removed `backdrop-filter` from `.card`** — 28 cards each forced a
+  full backdrop re-sample per frame; replaced with an opaque gradient tint that
+  reads the same (backdrop-filter elements 39 -> 11); (3) **BlockWipeText now
+  removes its spark/ribbon nodes when the reveal finishes** — ~132 one-shot
+  `.bwt-spark` nodes were persisting with `will-change` + infinite twinkle
+  animations (sparks 132 -> 0, will-change owners 238 -> 55, animating 231 -> 134);
+  (4) magnetize nav dots: `will-change` scoped to `:hover` instead of permanent;
+  (5) CinematicIntro `inView` band `2.4 -> 1.8` screens so the constellation rAF
+  stops sooner.
+  **MEASUREMENT CAVEAT — read before trusting numbers here:** the CDP test browser
+  renders on **Intel UHD integrated graphics** (verified via WEBGL_debug_renderer_info),
+  NOT the owner's RTX 3050, and scroll was script-driven. Absolute frame times from
+  that harness are pessimistic and did NOT improve much between runs; the resource
+  counts above are the reliable signal. Real-device verification still outstanding.
+
+- **2026-10-16** — **Live URL wired in + ATS keyword pass on CV/cover letter.**
+  Live site is **https://naseeruddin-shaik.vercel.app** (Vercel, not Netlify —
+  note `netlify.toml` at the monorepo root is now stale/unused). Regenerated both
+  PDFs with the real URL (placeholder gone) and added `og:url`, `og:site_name`,
+  `twitter:*` and `<link rel="canonical">` to `public/index.html` so LinkedIn /
+  WhatsApp / Google render a proper preview card.
+  **ATS pass:** audited the CV against 82 keywords across 7 categories common to
+  UK IT job specs; coverage went **~52% → 100%**, WITHOUT inventing experience.
+  Owner confirmed he has genuinely used **Postman, Swagger/OpenAPI and GitLab CI**
+  (previously missing) — those are now named explicitly. Added only defensible
+  terms already implied by his work: RESTful, microservices, JUnit, unit/regression
+  testing, test case design, debugging, root-cause analysis, RDBMS, joins, stored
+  procedures, HTML/CSS/TypeScript, pandas/NumPy, ETL, Linux, Scrum/sprints, code
+  reviews, stakeholder communication. **DELIBERATELY EXCLUDED** (owner does not use
+  them — keyword-stuffing fails at technical screen): Jenkins, Docker, Kubernetes,
+  Jira, Tableau, Power BI, MySQL, Oracle, NoSQL.
+  CV stayed **one page** by tightening type (8.1pt body / 10.3 leading) and margins
+  (12mm side, 9mm top) rather than cutting content. Generator scripts remain at
+  `%TEMP%/claude/cvgen/{cv.py,cover.py}`.
+
+- **2026-10-14 (later)** — **CV + cover letter PDFs regenerated.** The supplied
+  PDFs were rebuilt from scratch with `reportlab` (generator scripts live in
+  `%TEMP%/claude/cvgen/{cv.py,cover.py}` — NOT in the repo; regenerate with
+  `python cv.py <out.pdf> <portfolio-url>`). Both are single-page, ATS-friendly
+  (real selectable text, single-column, standard headings). Changes vs the
+  originals: summary now leads with the hard numbers (24+ APIs, 500k+ users,
+  11+ hrs/week saved); added "available for a full-time placement year from late
+  January 2027"; EDUCATION now says the MSc is a **sandwich degree with a
+  placement year Jan–Sept 2027**, graduating **2028**; added a portfolio URL slot;
+  cover letter gained a paragraph stating the placement window explicitly.
+  Deployed to BOTH `~/Downloads/` (originals kept as `*.OLD.pdf`) and
+  `public/docs/`. Website MSc dates realigned to **2026 — 2028** to match
+  (graduation 2028; the 2027 dates on the site refer to the PLACEMENT window, which
+  is correct and intentional — do not "fix" them to match each other).
+  **OWNER ACTION:** both PDFs contain the placeholder `YOUR-SITE-URL.netlify.app`
+  — replace with the real deployed URL and regenerate, or the link 404s.
+
+- **2026-10-14** — **Recruiter documents wired in + real metrics from the CV.**
+  Owner supplied his CV, cover letter and the University of Hertfordshire
+  placement letter. Files now live in `public/docs/` (CV, cover letter, placement
+  letter JPG) and ship in the production build. New optional type fields:
+  `hero.cvUrl | coverLetterUrl | placementLetterUrl` and `contact.documents[]`.
+  Rendered in TWO places: a "Download CV" button + a quiet `.hero-docs-row`
+  (cover letter, placement letter) in the hero, and a `.contact-docs` block on
+  the Contact page. All render ONLY when their URL is set.
+  **IMPORTANT FACTUAL CORRECTION** from the UH letter: he is NOT "available
+  immediately". The sandwich-year placement must start **25 Jan – 26 Feb 2027**,
+  run ≥30 working weeks to **24 Sept 2027**, and an offer must be **confirmed by
+  2 Dec 2026** (university approval takes 6–8 weeks). Hero + Contact copy now say
+  exactly this — the earlier "available now" wording would have wasted recruiter
+  time and looked careless.
+  Also replaced placeholder metrics with the REAL, defensible numbers off the CV:
+  **24+ production REST APIs**, **500,000+ users** on the platform, **11+ hrs/week**
+  of manual testing saved (12+ Selenium business-logic tests), 6-person Agile team.
+  These now appear in the hero summary, the metrics row, and both work case studies.
+  **STILL OUTSTANDING:** the two work projects' `repoUrl` still point at the GitHub
+  profile root rather than real repos — biggest remaining credibility gap.
+
+- **2026-10-12** — **Recruiter-focused content restructure** (content only; design
+  untouched). Owner asked how the site rates for getting shortlisted. Verdict: the
+  CRAFT was strong but the CONTENT was the bottleneck — vanity metrics, job duties
+  presented as "projects", no CV to forward, no visa/availability, unattributed
+  testimonials. Changes, all in `src/content/portfolio.ts` unless noted:
+  (1) **Hero** now leads with hireability: London-based, 1 yr production Java,
+  MSc 2027, available full-time. (2) **Metrics** swapped from tool counts
+  ("6 languages / 15+ technologies" — reads shallow) to experience facts
+  ("1 yr production Java", "40h/week available", "3 shipped roles", "2 degrees").
+  (3) **Availability note + contact** now state the real status: Student visa WITH
+  a university placement-year letter = eligible 40 hrs/week in IT/data science —
+  this is a genuine differentiator, most students can only do 20h. (4) **MSc dates
+  corrected 2028 → 2027** (the wrong end date made him look unavailable for 2 yrs).
+  (5) **Projects** reframed from job-duty lists into case studies with scope and
+  ownership (incl. production incidents). (6) **Testimonials REMOVED** at owner's
+  request (unattributed quotes read as filler) — `Testimonial[]` made OPTIONAL in
+  `types/index.ts` and the whole block (divider + heading) guarded in
+  `ContactPage.tsx`, so it simply vanishes when absent. (7) **Download CV button**
+  added to the hero (`hero.cvUrl` → `HomePage.tsx`); renders only when set.
+  (8) **index.html meta/title** aligned to "Software Engineer" (was "Software
+  Developer") + rewritten description/og tags for Google & LinkedIn previews.
+  **OUTSTANDING (owner action):** drop the actual PDF at
+  `public/Naseeruddin-Shaik-CV.pdf` — the button 404s until then. Also still the
+  biggest remaining gap: real inspectable project repos (the two work projects
+  still point `repoUrl` at the GitHub profile root, not real repos) and quantified
+  outcomes (no numbers anywhere in project outcomes yet).
+
+- **2026-09-24** — **Name reveal: both placements now IDENTICAL (do not diverge).**
+  Owner repeatedly reported the cinematic name (below the greeting) not matching
+  the loading-screen reveal. Cause: I had added an `entrance` prop (rise + scale +
+  blur-in on the wrapper) that fired only on the cinematic, plus different
+  delay/duration — so the text visibly "arrived" instead of being unveiled by the
+  wipe. FIX: removed the `entrance` prop from `BlockWipeText` ENTIRELY (dead
+  concept) and matched the props exactly. Both placements now pass
+  `blockColor="var(--accent-2)" delay={0.15} duration={0.6}`; the cinematic adds
+  ONLY `waitForIntro` (a timing gate, no visual difference). The reveal is purely
+  the `clipPath` inset tracking the ribbon edge — no fade, rise or scale on the
+  text. VERIFIED by measuring both clip curves in one run: loading ~507ms vs
+  cinematic ~528ms (21ms sampling jitter), same curve shape, and the cinematic
+  wrapper reads `transform:none; opacity:1` at every frame.
+  **Invariant: the name reveal must be clip-only. Do NOT add a fade/rise/scale to
+  one placement — if you change the reveal, change it in BlockWipeText so every
+  placement gets it, and keep the props identical.**
+  FOLLOW-UP (same day): the cinematic star scatter still looked "lighter" because
+  the particle counts/sizes were FIXED (16 sparks / 44 dust) while the cinematic
+  line is 885x98 vs the loading brand's 401x60 — **3.6x the area for the same
+  particles**. FIX: counts now scale with line width off the loading brand's
+  reference density (16 sparks & 44 dust per 401px, clamped), and particle size +
+  drift scale with line height (`sizeScale = clamp(h/60, 1, 1.9)`). Measured
+  after: loading 0.0399 sparks/px & 0.1097 dust/px vs cinematic 0.0396 & 0.1097 —
+  densities match; cinematic now gets 35 sparks / 97 dust at ~1.65x particle size.
+  **Invariant: keep particle counts/sizes PROPORTIONAL to the line box — never go
+  back to fixed counts, or big text looks sparse again.**
+- **2026-09-24** — **BRAVE SHIELDS FIX (important, two root causes).** Reported:
+  with Brave Shields UP (default settings — NOT script-blocking) the greeting,
+  laptop, constellation AND fonts were missing. Diagnosed two independent causes:
+  (1) **Fingerprint spoofing tripped the low-power gate.** Brave randomises
+  `navigator.deviceMemory` / `hardwareConcurrency` — measured `cores:3, mem:8` and
+  `cores:10, mem:8` on a 12-core/32GB machine. `isLowPowerDevice()` flagged
+  `cores<=4 || mem<=4` → `canShowCinematic()` false → the whole cinematic never
+  mounted. FIX (`lib/env.ts`): a real desktop (`pointer:fine` AND `innerWidth>=900`)
+  now returns false EARLY from isLowPowerDevice regardless of reported cores/mem —
+  those numbers are only trusted for coarse-pointer/narrow devices (real phones).
+  (2) **Google Fonts blocked cross-origin** → site fell back to system fonts. FIX:
+  fonts are now **SELF-HOSTED** in `public/fonts/` (22 woff2, latin+latin-ext
+  subsets, ~1MB, generated from the Google CSS then rewritten to `/fonts/*` paths);
+  `index.html` links `%PUBLIC_URL%/fonts/fonts.css` — no external font request
+  remains anywhere. VERIFIED in a real headless Brave (fresh profile, Shields up):
+  cinematic+greeting+laptop+constellation+footer robot all render, `document.fonts`
+  = loaded, Inter/JetBrains Mono check true, ZERO failed requests, zero JS errors —
+  even while Brave reported `cores:3`.
+  **Invariant: never re-add an external font/CDN <link>, and never gate a visible
+  feature on deviceMemory/hardwareConcurrency alone — privacy browsers lie.**
+- **2026-09-24** — **Star-wipe polish + robustness batch.** Evolved `BlockWipeText`
+  into a glowing multicolour "fairy ribbon" reveal and fixed several load-order
+  bugs. (1) Ribbon is now a translucent (opacity 0.68) multi-hue aurora
+  (violet→cyan→pink) with an outer glow + hot leading edge; sheds edge sparks +
+  44 slow sideways "fairy dust" motes that drift 2–5cm up/down. (2) Reveal is a
+  left→right `clipPath` wipe on the intact line (NOT per-char — char splitting
+  dropped the inter-word space and cramped the text; reverted). (3) `waitForIntro`
+  now detects the intro via BOTH the `intro-active` <html> class AND the `.intro`
+  element, and POLLS (a MutationObserver missed the class flip) — the cinematic
+  wipe was firing behind the loading curtain and being over before you saw it.
+  (4) Added an `entrance` prop (on for cinematic, off for loading which has its own
+  `intro-rise` CSS): the name rises+scales+un-blurs as the ribbon wipes, so it
+  ARRIVES rather than just being wiped. (5) Bulletproof `forceReveal` fallback so
+  the name can never stay hidden (fixed a reload blank). Loading name unchanged
+  (cyan, 0.6s); cinematic matched to it (delay 0.3, dur 1.1, waitForIntro).
+- **2026-09-24** — **Nav content-load fix (`useScrollReveal.ts`).** Client-side
+  nav to About/Contact/Skills/Projects showed BLANK content until a reload — the
+  reveal IntersectionObserver was set up during the page swap and observed the
+  OUTGOING page's stale nodes (confirmed: found 45 home nodes, not the 9 About
+  ones). Fix: setupReveal now (a) reveals on-screen `[data-reveal]` immediately via
+  a rect check, and (b) runs several staggered passes (rAF + 120/360/700ms), each
+  idempotent (skips `is-in` / `data-reveal-wired`), so whichever pass catches the
+  settled DOM wires the reveals. Below-fold still reveals on scroll.
+- **2026-09-24** — **No-JS notice (`public/index.html`).** Brave "Block scripts"
+  (and any JS-off) leaves this CRA SPA blank. Can't SSR without an architecture
+  change (owner declined Next.js), so replaced the bare `<noscript>` with a
+  styled on-brand "enable JavaScript for the full experience" card (Brave Shields
+  hint). Shows ONLY when JS is off; normal visitors never see it.
+- **2026-09-19** — **Block-wipe name reveal.** New `BlockWipeText` component
+  (`src/components/effects/BlockWipeText.tsx`): GSAP SplitText `type:'lines'` →
+  wraps each line in `.bwt-line-wrapper` (overflow hidden) + a coloured
+  `.bwt-block` overlay that scales in (left origin) then out (right origin) to
+  reveal the text. Self-contained injected CSS; reduced-motion → text just
+  shows. Wired on the name "Naseeruddin Shaik" in TWO places: (1) loading screen
+  (`Intro.tsx`, cyan `--accent-2`, lazy-imported so GSAP+SplitText stay OUT of
+  the main bundle — Suspense fallback shows plain text instantly); (2) cinematic
+  headline (`CinematicIntro.tsx`, accent block, plays on load BEFORE the existing
+  scroll-lunge — no conflict, wipe finishes ~1.8s before you scroll). CSS gotcha
+  fixed: `.cine-headline__name` uses `background-clip:text` gradient; SplitText
+  moves the text into `.bwt-line` children, so the gradient/clip rule now also
+  targets `.cine-headline__name--wipe .bwt-line` (App.css). CDP-verified on 9333:
+  loading-screen block caught mid-sweep; cinematic `.bwt-line` opacity 1 +
+  `bgClip:text` + `color:transparent` (gradient shows) + 96px; scroll-lunge still
+  fires (`matrix(2.4…) y-70 opacity 0`). All 4 gates green; main.js +133B (weight
+  is in a lazy chunk). NOT committed (owner pushes).
 - **2026-07-17** — Locked commit `7c7629b`: full Maska Bhai system (FSM, player,
   zones, config, 14 assets), Play Intro narration, mobile perf fixes, size bump
   to 96/64px. Named the mascot "Maska Bhai". All gates green; desktop + mobile

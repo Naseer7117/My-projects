@@ -146,6 +146,14 @@ export type HeroContent = {
   stats: Stat[];
   metrics?: Metric[];
   availabilityNote: string;
+  /** Recruiter documents. Each is optional — a button only renders when set.
+   *  Recruiters need files they can open, forward and attach to an ATS record,
+   *  so these are served as static files from /public/docs. */
+  cvUrl?: string;
+  coverLetterUrl?: string;
+  /** University placement/endorsement letter — the evidence behind the
+   *  "eligible to work 40 hrs/week" claim. */
+  placementLetterUrl?: string;
 };
 
 export type AboutContent = {
@@ -176,7 +184,11 @@ export type ContactContent = {
   location: string;
   availability: string;
   services: Service[];
-  testimonials: Testimonial[];
+  /** Optional — omit to hide the testimonials block entirely. */
+  testimonials?: Testimonial[];
+  /** Downloadable documents a recruiter can forward (CV, cover letter,
+   *  university placement letter). Optional — the block hides when empty. */
+  documents?: { label: string; href: string; note?: string }[];
   socials: SocialLink[];
   schedule: ScheduleItem[];
 };
