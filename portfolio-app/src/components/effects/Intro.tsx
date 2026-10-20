@@ -2,6 +2,11 @@ import React from 'react';
 import { portfolioData } from 'content/portfolio';
 import { useRafProgress } from 'hooks/interactions/useRafProgress';
 
+// Lazy so GSAP + SplitText stay out of the critical/main bundle — the loading
+// screen shows the name as plain text instantly (Suspense fallback), then the
+// block-wipe upgrades in once the chunk loads.
+const BlockWipeText = React.lazy(() => import('components/effects/BlockWipeText'));
+
 export type IntroVariant = 'full' | 'quick';
 
 type IntroProps = {
@@ -68,7 +73,12 @@ const Intro: React.FC<IntroProps> = ({ variant = 'full', onExitStart, onDone }) 
       <div className="intro__panel intro__panel--bottom" />
       <div className="intro__content">
         <div className="intro__brand">
-          <span className="intro__caret">&gt;</span> {hero.name}
+          <span className="intro__caret">&gt;</span>{' '}
+          <React.Suspense fallback={<span>{hero.name}</span>}>
+            <BlockWipeText className="intro__brand-wipe" blockColor="var(--accent-2)" delay={0.15} duration={0.6}>
+              {hero.name}
+            </BlockWipeText>
+          </React.Suspense>
         </div>
         <div className="intro__role">{hero.role}</div>
         <div className="intro__bar">

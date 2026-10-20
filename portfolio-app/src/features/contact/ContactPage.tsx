@@ -39,6 +39,26 @@ const ContactPage: React.FC<ContactPageProps> = ({ data, beatEnabled = true }) =
               </span>
               <h2 className="section-title mt-3">Let&rsquo;s build something together</h2>
               <p className="text-secondary">{data.availability}</p>
+              {/* Documents a recruiter can actually act on — CV to forward, cover
+                  letter, and the university letter evidencing the placement dates
+                  and full-time hours. Hidden entirely when none are configured. */}
+              {data.documents && data.documents.length > 0 ? (
+                <div className="contact-docs mt-4">
+                  <span className="text-uppercase text-muted small d-block mb-2">Documents</span>
+                  {data.documents.map((doc) => (
+                    <a
+                      className="contact-doc"
+                      href={doc.href}
+                      key={doc.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span className="contact-doc__label">{doc.label}</span>
+                      {doc.note ? <span className="contact-doc__note">{doc.note}</span> : null}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
               <div className="mt-4">
                 <span className="text-uppercase text-muted small d-block">Email</span>
                 <a className="contact-link" href={`mailto:${data.email}`}>
@@ -98,21 +118,27 @@ const ContactPage: React.FC<ContactPageProps> = ({ data, beatEnabled = true }) =
                 ))}
               </div>
 
-              <hr className="section-divider" />
-
-              <h3 className="h5 heading-sparkle mt-4">
-                <span className="heading-sparkle__star" aria-hidden="true" />
-                <span className="heading-sparkle__text">Testimonials</span>
-                <span className="heading-sparkle__star heading-sparkle__star--mirrored" aria-hidden="true" />
-              </h3>
-              {data.testimonials.map((testimonial) => (
-                <blockquote className="blockquote small text-secondary" key={testimonial.quote}>
-                  "{testimonial.quote}"
-                  <footer className="blockquote-footer mt-2 testimonial-footer">
-                    {testimonial.author} - {testimonial.role}
-                  </footer>
-                </blockquote>
-              ))}
+              {/* Testimonials are OPTIONAL: unattributed quotes read as filler to
+                  experienced reviewers, so the whole block (divider + heading)
+                  only renders when there are real, attributed ones to show. */}
+              {data.testimonials && data.testimonials.length > 0 ? (
+                <>
+                  <hr className="section-divider" />
+                  <h3 className="h5 heading-sparkle mt-4">
+                    <span className="heading-sparkle__star" aria-hidden="true" />
+                    <span className="heading-sparkle__text">Testimonials</span>
+                    <span className="heading-sparkle__star heading-sparkle__star--mirrored" aria-hidden="true" />
+                  </h3>
+                  {data.testimonials.map((testimonial) => (
+                    <blockquote className="blockquote small text-secondary" key={testimonial.quote}>
+                      "{testimonial.quote}"
+                      <footer className="blockquote-footer mt-2 testimonial-footer">
+                        {testimonial.author} - {testimonial.role}
+                      </footer>
+                    </blockquote>
+                  ))}
+                </>
+              ) : null}
 
               <div className="mt-4 d-flex flex-wrap gap-3 contact-socials">
                 {data.socials.map((social, index) => (

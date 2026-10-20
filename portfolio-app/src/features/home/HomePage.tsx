@@ -198,6 +198,21 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
                 <button className="btn btn-primary btn-lg" type="button" onClick={() => onNavigate('projects')}>
                   View projects
                 </button>
+                {/* Recruiter documents. These are the files a recruiter actually
+                    needs to act: a CV to forward into an ATS, a cover letter, and
+                    the university letter that evidences the right-to-work claim.
+                    Each renders only when its URL is set in the content file. */}
+                {data.cvUrl ? (
+                  <a
+                    className="btn btn-outline-light btn-lg hero-cv-btn"
+                    href={data.cvUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Download CV
+                  </a>
+                ) : null}
                 <button
                   className="btn btn-outline-light btn-lg hero-social-toggle-btn"
                   type="button"
@@ -210,6 +225,32 @@ const HomePage: React.FC<HomePageProps> = ({ data, onNavigate }) => {
                   {showSocials ? 'Hide social accounts' : 'Explore social accounts'}
                 </button>
               </div>
+              {/* Secondary documents row — kept below the primary CTAs so it does
+                  not compete with them, but still above the fold for recruiters. */}
+              {data.coverLetterUrl || data.placementLetterUrl ? (
+                <div className="hero-docs-row">
+                  {data.coverLetterUrl ? (
+                    <a
+                      className="hero-doc-link"
+                      href={data.coverLetterUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Cover letter
+                    </a>
+                  ) : null}
+                  {data.placementLetterUrl ? (
+                    <a
+                      className="hero-doc-link"
+                      href={data.placementLetterUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      University placement letter
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
               {hasSocials ? (
                 <div
                   className={`hero-social-dropdown${showSocials ? ' show' : ''}`}

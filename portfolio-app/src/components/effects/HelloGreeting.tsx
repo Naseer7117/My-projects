@@ -1,5 +1,5 @@
 import React from 'react';
-import { prefersReducedMotion } from 'lib/env';
+import { cinematicMotionAllowed } from 'lib/env';
 
 /*
  * HelloGreeting — the iPhone-setup "hello" greeting. Each word is DRAWN
@@ -74,7 +74,7 @@ const FADE_MS = 550;
 const CYCLE = WRITE_MS + HOLD_MS + FADE_MS;
 
 const HelloGreeting: React.FC = () => {
-  const reduced = prefersReducedMotion();
+  const reduced = !cinematicMotionAllowed(); // touch honours reduce-motion; desktop always cycles
   const [index, setIndex] = React.useState(0);
 
   React.useEffect(() => {

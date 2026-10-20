@@ -50,12 +50,26 @@ export function useCursorFx(): void {
     const fine = hasFinePointer() && !prefersReducedMotion();
 
     // --- spotlight + shared pointer tracking ---
+    // PERF: --mx/--my are written to the .spotlight ELEMENT, not to :root.
+    // A custom-property change on documentElement invalidates style for the
+    // entire document (~1,000 elements here) — a real DevTools trace showed
+    // "Recalculate Style" at 57.7% of total time. Only .spotlight reads these
+    // vars, so the write is scoped to it. The write is also rAF-throttled;
+    // pointermove can fire >100x/sec and previously wrote on every event.
+    const spotlightEl = document.querySelector<HTMLElement>('.spotlight');
+    let ptrRaf = 0;
+    const flushPointerVars = () => {
+      ptrRaf = 0;
+      if (spotlightEl) {
+        spotlightEl.style.setProperty('--mx', `${pointer.x}px`);
+        spotlightEl.style.setProperty('--my', `${pointer.y}px`);
+      }
+    };
     const onPointerMove = (e: PointerEvent) => {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
       pointer.active = true;
-      root.style.setProperty('--mx', `${e.clientX}px`);
-      root.style.setProperty('--my', `${e.clientY}px`);
+      if (!ptrRaf) ptrRaf = requestAnimationFrame(flushPointerVars);
     };
     if (fine) {
       root.classList.add('has-spotlight');
@@ -63,6 +77,7 @@ export function useCursorFx(): void {
       cleanups.push(() => {
         window.removeEventListener('pointermove', onPointerMove);
         root.classList.remove('has-spotlight');
+        if (ptrRaf) cancelAnimationFrame(ptrRaf);
       });
     }
 

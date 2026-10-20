@@ -7,34 +7,37 @@
     <meta name="theme-color" content="#0a0d14" />
     <meta
       name="description"
-      content="Naseeruddin Shaik — Software Developer building reliable backend services in Java and Spring Boot, and typed full-stack web apps with React and TypeScript."
+      content="Naseeruddin Shaik — Software Engineer in London. A year of production Java 17 and Spring Boot, now reading an MSc in Data Science (2027). Available for placements, internships and graduate roles."
     />
-    <meta property="og:title" content="Naseeruddin Shaik — Software Developer" />
+    <meta property="og:title" content="Naseeruddin Shaik — Software Engineer (Java · Spring Boot · Data Science)" />
     <meta
       property="og:description"
-      content="Backend and full-stack developer. Java · Spring Boot · React · TypeScript · SQL."
+      content="London-based Software Engineer. Production Java 17 / Spring Boot, SQL, test automation — now specialising in data science. Open to placements and graduate roles."
     />
     <meta property="og:type" content="website" />
+    <!-- Canonical + social preview. Matters once the site is shared: LinkedIn,
+         WhatsApp and Google use these for the title/description card. -->
+    <meta property="og:url" content="https://naseeruddin-shaik.vercel.app/" />
+    <meta property="og:site_name" content="Naseeruddin Shaik" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Naseeruddin Shaik — Software Engineer (Java · Spring Boot · Data Science)" />
+    <meta name="twitter:description" content="London-based Software Engineer. 24+ production REST APIs in Java 17 / Spring Boot for a platform serving 500,000+ users. Seeking a placement year from Jan 2027." />
+    <link rel="canonical" href="https://naseeruddin-shaik.vercel.app/" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Load the fonts stylesheet non-render-blocking: fetch as 'print' (low
-         priority, off the critical path) then flip to 'all' once loaded. The
-         page's font-display:swap already avoids invisible text meanwhile. -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
-    />
+    <!-- Fonts are SELF-HOSTED (public/fonts/) rather than loaded from
+         fonts.googleapis.com. Privacy blockers — notably Brave Shields — block
+         cross-origin font requests, which left the site rendering in fallback
+         system fonts (reported in the wild). Serving them from our own origin
+         means nothing can block them. font-display:swap keeps text visible while
+         they load; each face is still weight/subset-split so only what's needed
+         is fetched. Loaded non-render-blocking (media=print → all on load), with
+         a <noscript> copy so it still applies when JS is off. -->
+    <link rel="stylesheet" href="%PUBLIC_URL%/fonts/fonts.css" media="print" onload="this.media='all'" />
     <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-        rel="stylesheet"
-      />
+      <link rel="stylesheet" href="%PUBLIC_URL%/fonts/fonts.css" />
     </noscript>
-    <title>Naseeruddin Shaik — Software Developer</title>
+    <title>Naseeruddin Shaik — Software Engineer | Java, Spring Boot & Data Science</title>
     <style>
       /* Anti-flash: dark background on BODY only. Do NOT set a background on
          <html> — that stops body-background propagation to the viewport and
@@ -81,7 +84,27 @@
     </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <!-- Shown ONLY when JavaScript is disabled (e.g. Brave "Block scripts"
+         Shield). This is exactly the audience whose greeting / footer robot /
+         animations can't load, so they get a friendly heads-up instead of a
+         blank-looking page. Normal visitors never see it. Inline styles because
+         the app's CSS is JS-injected and won't be present either. -->
+    <noscript>
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:#05060d;color:#eaf0fb;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;box-sizing:border-box;">
+        <div style="max-width:30rem;text-align:center;">
+          <div style="font-size:2.25rem;margin-bottom:0.75rem;">✨</div>
+          <h1 style="font-size:1.4rem;font-weight:700;margin:0 0 0.75rem;color:#ffffff;">Naseeruddin Shaik</h1>
+          <p style="font-size:1rem;line-height:1.6;margin:0 0 1.25rem;color:#aab6cc;">
+            Please <strong style="color:#8b7bff;">enable JavaScript</strong> for the full experience — the greeting,
+            animations, and interactive elements need it to run.
+          </p>
+          <p style="font-size:0.85rem;line-height:1.6;margin:0;color:#7c88a0;">
+            On Brave, click the <strong style="color:#aab6cc;">Shields</strong> icon in the address bar and allow
+            scripts for this site, then reload.
+          </p>
+        </div>
+      </div>
+    </noscript>
     <div id="root"></div>
   </body>
 </html>

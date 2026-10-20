@@ -43,18 +43,52 @@ export function canRunHeavyDesktopFx(minWidth = 900): boolean {
 }
 
 /**
- * Whether to run the CINEMATIC scroll-intro (laptop-open sequence, constellation,
- * greeting, floating paths). Unlike canRunHeavyDesktopFx this INCLUDES capable
- * MOBILE devices — the owner wants the same landing experience on phones. Drops
- * the fine-pointer + wide-viewport requirement (the mouse-sheen no-ops on touch;
- * GSAP scrubs on touch scroll), but EXCLUDES low-power devices: measured on a
- * 4-core emulator the cinematic's per-frame cost (GSAP scrub + constellation rAF +
- * 60 hue-rotate keys) dropped it to ~7fps — janky. Weak devices get the smooth
- * lightweight mobile hero instead (60fps); capable phones (≥6 cores) get the full
- * cinematic. reduced-motion always opts out.
+ * Whether to run the FULL-MOTION cinematic scroll-intro (laptop-open sequence,
+ * scroll-lunge, constellation, floating paths). Includes capable MOBILE devices
+ * (owner wants the same landing on phones) and EXCLUDES low-power devices (on a
+ * 4-core emulator the per-frame cost dropped to ~7fps — janky; those get the calm
+ * static laptop or the lightweight mobile hero instead).
+ *
+ * reduced-motion: honoured on TOUCH devices only. On a real PC/laptop (a fine
+ * pointer — mouse/trackpad) we run the full motion even with reduced-motion set,
+ * because that OS flag is very often left on by accident there and most visitors
+ * don't know why the site then looks stripped-down — the owner wants desktop
+ * visitors to see the site exactly as built. Touch users who set reduced-motion
+ * (more deliberate, and scroll-scrub motion-sickness matters more) still get the
+ * calm static version.
  */
 export function canRunCinematic(): boolean {
-  return typeof window !== 'undefined' && !prefersReducedMotion() && !isLowPowerDevice();
+  if (typeof window === 'undefined' || isLowPowerDevice()) return false;
+  if (prefersReducedMotion() && !hasFinePointer()) return false; // honour it on touch only
+  return true;
+}
+
+/**
+ * Whether the CINEMATIC-layer motion (star-wipe name reveal, constellation mesh,
+ * greeting handwriting draw) should animate. Mirrors canRunCinematic's policy for
+ * the pieces that check reduced-motion in JS rather than CSS: honour reduced-motion
+ * on TOUCH devices only; a real PC/laptop (fine pointer) always animates so the
+ * cinematic looks exactly as built. Use this in cinematic components INSTEAD of a
+ * bare prefersReducedMotion() check. (Deliberately NOT used by accessibility-wide
+ * effects like scroll-reveal / page transitions, which honour the flag everywhere.)
+ */
+export function cinematicMotionAllowed(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (prefersReducedMotion() && !hasFinePointer()) return false; // touch honours it
+  return true;
+}
+
+/**
+ * Whether to RENDER the cinematic opener at all — greeting, laptop and name —
+ * regardless of whether it will fully animate. Unlike canRunCinematic() this
+ * does NOT exclude reduced-motion visitors: they still SEE the laptop/greeting,
+ * just in a calm static state (no scroll-lunge, no scrubbed pin, no drifting
+ * paths). Only low-power devices are excluded (they get the lightweight mobile
+ * hero instead). CinematicIntro uses this to decide whether to mount, and
+ * canRunCinematic() to decide whether to run the full motion.
+ */
+export function canShowCinematic(): boolean {
+  return typeof window !== 'undefined' && !isLowPowerDevice();
 }
 
 /**
@@ -65,9 +99,29 @@ export function canRunCinematic(): boolean {
  */
 export function isLowPowerDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
+  const hasMM = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+
+  // ANY device driven by a mouse/trackpad is a real computer — never gate it out.
+  // This was a REAL, REPRODUCED BUG: the old rule excluded anything reporting
+  // <=4 CPU cores OR <=4GB RAM, which is most university lab PCs, office desktops
+  // and budget laptops. Those visitors saw the site with NO greeting, NO laptop,
+  // NO constellation and NO scroll animations — "just a basic site" — across
+  // Chrome, Edge and Brave with default settings. Browsers also under-report or
+  // deliberately SPOOF these values (Brave caps deviceMemory), so they are simply
+  // not a trustworthy proxy for "can this machine animate".
+  // Desktop GPUs handle this content fine even at 2 cores; the real risk is phones.
+  if (hasMM && window.matchMedia('(pointer: fine)').matches) {
+    return false;
+  }
+
   const cores = (navigator as Navigator & { hardwareConcurrency?: number }).hardwareConcurrency;
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-  if (typeof cores === 'number' && cores > 0 && cores <= 4) return true;
-  if (typeof mem === 'number' && mem > 0 && mem <= 4) return true;
-  return false;
+  const weakCores = typeof cores === 'number' && cores > 0 && cores <= 4;
+  const weakMem = typeof mem === 'number' && mem > 0 && mem <= 4;
+
+  // Touch devices only: require BOTH signals to be weak before dropping the
+  // cinematic. Requiring either one alone excluded plenty of capable mid-range
+  // phones (an 8-core handset that merely reports 4GB was being downgraded).
+  return weakCores && weakMem;
 }
+
